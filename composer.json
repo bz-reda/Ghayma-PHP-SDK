@@ -1,0 +1,46 @@
+{
+    "name": "ghayma/sdk",
+    "description": "PHP client for the Ghayma platform: admin (project key) and stateless end-user auth (app slug + server key).",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["ghayma", "sdk", "paas", "auth", "storage", "database"],
+    "homepage": "https://ghayma.cloud",
+    "support": {
+        "docs": "https://docs.ghayma.cloud",
+        "source": "https://github.com/bz-reda/Ghayma-PHP-SDK"
+    },
+    "require": {
+        "php": ">=8.2",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^2.0",
+        "php-http/discovery": "^1.19"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11",
+        "phpstan/phpstan": "^2",
+        "friendsofphp/php-cs-fixer": "^3",
+        "guzzlehttp/guzzle": "^7",
+        "nyholm/psr7": "^1.8"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "A PSR-18 HTTP client, auto-discovered when installed",
+        "nyholm/psr7": "PSR-7/17 message and factory implementations, auto-discovered when installed"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ghayma\\Sdk\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ghayma\\Sdk\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
