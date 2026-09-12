@@ -221,7 +221,10 @@ final class AdminTest extends TestCase
         $client = (new RecordingClient())->queueRaw(200, 'RAWBYTES', ['Content-Type' => 'image/jpeg', 'Content-Length' => '8']);
         $content = $this->ghayma($client)->storage->downloadObject('b1', 'images/photo.jpg');
 
-        $this->assertSame('https://api.ghayma.tech/api/v1/storage/b1/objects/download?key=images%2Fphoto.jpg', (string) $client->lastRequest()->getUri());
+        $r = $client->lastRequest();
+        $this->assertSame('https://api.ghayma.tech/api/v1/storage/b1/objects/download?key=images%2Fphoto.jpg', (string) $r->getUri());
+        // A binary download must not advertise Accept: application/json.
+        $this->assertSame('*/*', $r->getHeaderLine('Accept'));
         $this->assertInstanceOf(ObjectContent::class, $content);
         $this->assertSame('RAWBYTES', $content->bytes);
         $this->assertSame('image/jpeg', $content->contentType);

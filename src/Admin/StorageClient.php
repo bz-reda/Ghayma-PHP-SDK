@@ -104,6 +104,7 @@ final class StorageClient
         $response = $this->transport->requestRaw(
             'GET',
             '/api/v1/storage/' . $id . '/objects/download?' . http_build_query(['key' => $key]),
+            headers: ['Accept' => '*/*'],
         );
         $bytes = (string) $response->getBody();
         $length = $response->getHeaderLine('Content-Length');
