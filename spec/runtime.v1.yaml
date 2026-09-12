@@ -1,0 +1,2820 @@
+openapi: 3.0.3
+info:
+  title: Ghayma Runtime API
+  version: 1.0.0
+  description: |
+    The Ghayma platform API as reached by a **project API key** (`gsk_…`).
+
+    A project key does not reach all of `api.ghayma.tech` — it reaches a
+    deny-by-default allowlist (`projectkeys.MatchRoute`), scoped to the key's
+    own project and gated by the key's capabilities (`auth`, `deploy`,
+    `storage`, `databases`). This document describes exactly that reachable
+    surface, one operation per allowlisted route, and nothing else.
+
+    Authenticate with `Authorization: Bearer gsk_…`. A route that is not on
+    the allowlist answers `403`; a resource in another project answers `404`
+    (the key cannot tell a foreign resource from a missing one). Missing or
+    invalid keys answer `401`; a key without the capability a route needs
+    answers `403`.
+servers:
+  - url: https://api.ghayma.tech
+tags:
+  - name: Auth apps
+    description: Administer the end users of an auth app. Requires the `auth` capability.
+  - name: Deploy
+    description: Upload builds, read deployments, projects and sites. Requires the `deploy` capability.
+  - name: Storage
+    description: Read buckets and their objects, mint presigned URLs. Requires the `storage` capability.
+  - name: Databases
+    description: Read managed databases, their credentials and metrics. Requires the `databases` capability.
+security:
+  - projectKey: []
+paths:
+  /api/v1/auth-apps:
+    get:
+      tags: [Auth apps]
+      operationId: listAuthApps
+      summary: List the auth apps in the key's project.
+      responses:
+        '200':
+          description: The project's auth apps.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [auth_apps]
+                properties:
+                  auth_apps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuthApp'
+              examples:
+                success:
+                  value:
+                    auth_apps:
+                      - id: 7b2f9c14-3e5a-4d61-9f8b-2a1c4e6d8f00
+                        user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                        project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                        name: Sample App
+                        app_id: sample-app
+                        status: active
+                        allowed_origins: ['https://sample.example.com']
+                        email_verification_required: true
+                        google_oauth_enabled: false
+                        google_native_client_ids: []
+                        github_oauth_enabled: false
+                        auth_tier_slug: 1k
+                        two_fa_enabled: false
+                        sms_enabled: false
+                        two_fa_policy: optional
+                        reset_url: ''
+                        email_locale: en
+                        jwt_expiry_seconds: 900
+                        refresh_expiry_seconds: 604800
+                        created_at: '2026-09-01T10:15:00Z'
+                        updated_at: '2026-09-10T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/auth-apps/{id}:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+    get:
+      tags: [Auth apps]
+      operationId: getAuthApp
+      summary: Get one auth app's configuration.
+      responses:
+        '200':
+          description: The auth app.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [auth_app]
+                properties:
+                  auth_app:
+                    $ref: '#/components/schemas/AuthApp'
+              examples:
+                success:
+                  value:
+                    auth_app:
+                      id: 7b2f9c14-3e5a-4d61-9f8b-2a1c4e6d8f00
+                      user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                      project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                      name: Sample App
+                      app_id: sample-app
+                      status: active
+                      allowed_origins: ['https://sample.example.com']
+                      email_verification_required: true
+                      google_oauth_enabled: false
+                      google_native_client_ids: []
+                      github_oauth_enabled: false
+                      auth_tier_slug: 1k
+                      two_fa_enabled: false
+                      sms_enabled: false
+                      two_fa_policy: optional
+                      reset_url: ''
+                      email_locale: en
+                      jwt_expiry_seconds: 900
+                      refresh_expiry_seconds: 604800
+                      created_at: '2026-09-01T10:15:00Z'
+                      updated_at: '2026-09-10T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/stats:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+    get:
+      tags: [Auth apps]
+      operationId: getAuthAppStats
+      summary: Get an auth app's aggregate statistics.
+      responses:
+        '200':
+          description: Counters and the 20 most recent events.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [stats]
+                properties:
+                  stats:
+                    $ref: '#/components/schemas/AuthStats'
+              examples:
+                success:
+                  value:
+                    stats:
+                      total_users: 128
+                      verified_users: 100
+                      active_sessions: 12
+                      signups_today: 3
+                      signups_week: 20
+                      signups_month: 60
+                      events_today: 45
+                      events_week: 300
+                      logins_today: 30
+                      provider_breakdown:
+                        - provider: email
+                          count: 90
+                        - provider: google
+                          count: 38
+                      recent_events:
+                        - id: 2b8f6a10-1c2d-4e3f-8a9b-0c1d2e3f4a5b
+                          app_id: 7b2f9c14-3e5a-4d61-9f8b-2a1c4e6d8f00
+                          user_id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                          event: login
+                          ip: 203.0.113.10
+                          user_agent: Mozilla/5.0
+                          success: true
+                          created_at: '2026-09-10T09:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/reset-link:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+    post:
+      tags: [Auth apps]
+      operationId: createPasswordResetLink
+      summary: Mint a single-use password-reset link for an end user.
+      description: |
+        Returns a live, single-use reset link (expires in one hour) for apps
+        that send their own reset emails. Send it only to the user's verified
+        email; never log it. Requires the admin or owner role on the project
+        and is rate-limited per app; minting invalidates any pending reset token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+            example:
+              email: user@example.com
+      responses:
+        '200':
+          description: The reset link and its expiry.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [link, expires_at]
+                properties:
+                  link:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+              examples:
+                success:
+                  value:
+                    link: 'https://sample.example.com/reset?token=example-reset-token'
+                    expires_at: '2026-09-12T13:15:00Z'
+        '400':
+          description: Missing or malformed email.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: email required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/v1/auth-apps/{id}/users:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+    get:
+      tags: [Auth apps]
+      operationId: listAuthAppUsers
+      summary: Page through an auth app's end users.
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: 1-based page number (default 1).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          required: false
+          description: Results per page, 1–100 (default 20).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: A page of users.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users, total, page, per_page]
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuthUser'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
+              examples:
+                success:
+                  value:
+                    users:
+                      - id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                        app_id: 7b2f9c14-3e5a-4d61-9f8b-2a1c4e6d8f00
+                        email: user@example.com
+                        name: Sample User
+                        email_verified: true
+                        provider: email
+                        disabled: false
+                        app_metadata:
+                          roles: [member]
+                        phone_verified: false
+                        totp_enabled: false
+                        whatsapp_otp_enabled: false
+                        last_login_at: '2026-09-09T08:30:00Z'
+                        created_at: '2026-09-01T10:15:00Z'
+                        updated_at: '2026-09-09T08:30:00Z'
+                    total: 128
+                    page: 1
+                    per_page: 20
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/users/{userId}:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+      - $ref: '#/components/parameters/userId'
+    get:
+      tags: [Auth apps]
+      operationId: getAuthAppUser
+      summary: Get one end user of an auth app.
+      responses:
+        '200':
+          description: The user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AuthUser'
+              examples:
+                success:
+                  value:
+                    user:
+                      id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                      app_id: 7b2f9c14-3e5a-4d61-9f8b-2a1c4e6d8f00
+                      email: user@example.com
+                      name: Sample User
+                      email_verified: true
+                      provider: email
+                      disabled: false
+                      app_metadata:
+                        roles: [member]
+                      phone_verified: false
+                      totp_enabled: false
+                      whatsapp_otp_enabled: false
+                      last_login_at: '2026-09-09T08:30:00Z'
+                      created_at: '2026-09-01T10:15:00Z'
+                      updated_at: '2026-09-09T08:30:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Auth apps]
+      operationId: deleteAuthAppUser
+      summary: Delete an end user from the auth app.
+      description: Requires the admin or owner role on the project; audited.
+      responses:
+        '200':
+          description: The user was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              examples:
+                success:
+                  value:
+                    message: user deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/users/{userId}/disable:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+      - $ref: '#/components/parameters/userId'
+    post:
+      tags: [Auth apps]
+      operationId: disableAuthAppUser
+      summary: Disable an end user (block sign-in).
+      description: Requires the admin or owner role on the project; audited.
+      responses:
+        '200':
+          description: The user was disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              examples:
+                success:
+                  value:
+                    message: user disabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/users/{userId}/enable:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+      - $ref: '#/components/parameters/userId'
+    post:
+      tags: [Auth apps]
+      operationId: enableAuthAppUser
+      summary: Re-enable a previously disabled end user.
+      description: Requires the admin or owner role on the project; audited.
+      responses:
+        '200':
+          description: The user was enabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              examples:
+                success:
+                  value:
+                    message: user enabled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/users/{userId}/reset-2fa:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+      - $ref: '#/components/parameters/userId'
+    post:
+      tags: [Auth apps]
+      operationId: resetAuthAppUser2FA
+      summary: Clear an end user's 2FA enrolment.
+      description: |
+        Support hammer for a locked-out user (lost authenticator). The user
+        signs back in with their password and re-enrols. Requires the admin or
+        owner role on the project; audited.
+      responses:
+        '200':
+          description: The user's 2FA enrolment was cleared.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              examples:
+                success:
+                  value:
+                    message: 2FA reset — the user can sign in with their password and re-enrol
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth-apps/{id}/users/{userId}/app-metadata:
+    parameters:
+      - $ref: '#/components/parameters/authAppId'
+      - $ref: '#/components/parameters/userId'
+    patch:
+      tags: [Auth apps]
+      operationId: updateAuthAppUserAppMetadata
+      summary: Replace an end user's developer-owned app_metadata.
+      description: |
+        Replaces the user's `app_metadata` (roles, plan, tenant id); `{}` clears
+        it. The new value reaches the user's access token at the next refresh.
+        Requires the admin or owner role on the project.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [app_metadata]
+              properties:
+                app_metadata:
+                  type: object
+                  additionalProperties: true
+            example:
+              app_metadata:
+                roles: [admin]
+                plan: pro
+      responses:
+        '200':
+          description: The updated user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AuthUser'
+              examples:
+                success:
+                  value:
+                    user:
+                      id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                      app_id: 7b2f9c14-3e5a-4d61-9f8b-2a1c4e6d8f00
+                      email: user@example.com
+                      name: Sample User
+                      email_verified: true
+                      provider: email
+                      disabled: false
+                      app_metadata:
+                        roles: [admin]
+                        plan: pro
+                      phone_verified: false
+                      totp_enabled: false
+                      whatsapp_otp_enabled: false
+                      last_login_at: '2026-09-09T08:30:00Z'
+                      created_at: '2026-09-01T10:15:00Z'
+                      updated_at: '2026-09-11T14:00:00Z'
+        '400':
+          description: The body is not a JSON object.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: app_metadata must be a JSON object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/databases:
+    get:
+      tags: [Databases]
+      operationId: listDatabases
+      summary: List the managed databases in the key's project.
+      responses:
+        '200':
+          description: The project's databases.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [databases]
+                properties:
+                  databases:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Database'
+              examples:
+                success:
+                  value:
+                    databases:
+                      - id: d4a1e2b3-6c7d-48e9-b0a1-2c3d4e5f6a7b
+                        user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                        project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                        name: primary
+                        type: postgres
+                        version: '16'
+                        status: running
+                        host: primary-pg.databases.svc.cluster.local
+                        port: 5432
+                        db_name: appdb
+                        username: appuser
+                        tier_slug: db-s
+                        cpu_request: 100m
+                        cpu_limit: '1'
+                        memory_request: 256Mi
+                        memory_limit: 1Gi
+                        cpu_milli: 1000
+                        memory_mb: 1024
+                        storage_mb: 5120
+                        storage_used_bytes: 734003200
+                        disk_gb: 5
+                        backup_tier_slug: weekly
+                        max_connections: 100
+                        replica_set: false
+                        external_access: false
+                        created_at: '2026-09-01T10:15:00Z'
+                        updated_at: '2026-09-10T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/databases/{id}:
+    parameters:
+      - $ref: '#/components/parameters/databaseId'
+    get:
+      tags: [Databases]
+      operationId: getDatabase
+      summary: Get one managed database.
+      responses:
+        '200':
+          description: The database.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [database]
+                properties:
+                  database:
+                    $ref: '#/components/schemas/Database'
+              examples:
+                success:
+                  value:
+                    database:
+                      id: d4a1e2b3-6c7d-48e9-b0a1-2c3d4e5f6a7b
+                      user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                      project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                      name: primary
+                      type: postgres
+                      version: '16'
+                      status: running
+                      host: primary-pg.databases.svc.cluster.local
+                      port: 5432
+                      db_name: appdb
+                      username: appuser
+                      tier_slug: db-s
+                      cpu_request: 100m
+                      cpu_limit: '1'
+                      memory_request: 256Mi
+                      memory_limit: 1Gi
+                      cpu_milli: 1000
+                      memory_mb: 1024
+                      storage_mb: 5120
+                      storage_used_bytes: 734003200
+                      disk_gb: 5
+                      backup_tier_slug: weekly
+                      max_connections: 100
+                      replica_set: false
+                      external_access: false
+                      created_at: '2026-09-01T10:15:00Z'
+                      updated_at: '2026-09-10T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/databases/{id}/credentials:
+    parameters:
+      - $ref: '#/components/parameters/databaseId'
+    get:
+      tags: [Databases]
+      operationId: getDatabaseCredentials
+      summary: Get a managed database's connection credentials.
+      responses:
+        '200':
+          description: Connection details, including the live password.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseCredentials'
+              examples:
+                success:
+                  value:
+                    type: postgres
+                    host: primary-pg.databases.svc.cluster.local
+                    port: 5432
+                    username: appuser
+                    password: example-password
+                    database: appdb
+                    internal_url: 'postgresql://appuser:example-password@primary-pg.databases.svc.cluster.local:5432/appdb'
+                    external_access: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/databases/{id}/metrics:
+    parameters:
+      - $ref: '#/components/parameters/databaseId'
+    get:
+      tags: [Databases]
+      operationId: getDatabaseMetrics
+      summary: Get a managed database's live metrics.
+      description: When the database is not running, only `status` is set.
+      responses:
+        '200':
+          description: Live metrics.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [metrics]
+                properties:
+                  metrics:
+                    $ref: '#/components/schemas/DatabaseMetrics'
+              examples:
+                success:
+                  value:
+                    metrics:
+                      status: running
+                      uptime_hours: 128.5
+                      size_bytes: 734003200
+                      size_readable: 700 MB
+                      active_connections: 4
+                      max_connections: 100
+                      extra:
+                        table_count: 12
+                        total_rows: 34567
+                        cache_hit_ratio: 0.98
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/deploy/upload:
+    post:
+      tags: [Deploy]
+      operationId: uploadDeploy
+      summary: Upload a source archive and queue a build.
+      description: |
+        Multipart upload of a project's source as a `.zip` or `.tar.gz`. Creates
+        a deployment record and queues the build; the response returns before the
+        build runs. `project_id` must be the key's own project. `site_id` is
+        optional — empty deploys to the project's default site.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [project_id, source]
+              properties:
+                project_id:
+                  type: string
+                  description: Target project id (must be the key's project).
+                source:
+                  type: string
+                  format: binary
+                  description: Source archive, `.zip` or `.tar.gz`.
+                site_id:
+                  type: string
+                  description: Target site id; empty deploys to the default site.
+                commit_message:
+                  type: string
+                is_production:
+                  type: string
+                  description: '"true" marks a production deploy; any other value is non-production.'
+                root_directory:
+                  type: string
+                dockerfile_path:
+                  type: string
+                  description: Honoured only when the project enables a custom Dockerfile.
+                port:
+                  type: integer
+                framework:
+                  type: string
+                build_command:
+                  type: string
+                install_command:
+                  type: string
+                start_command:
+                  type: string
+                output_directory:
+                  type: string
+                builder:
+                  type: string
+                crons:
+                  type: string
+                  description: The ghayma.json `crons` array, forwarded verbatim as a JSON string.
+            example:
+              project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+              source: (binary .zip or .tar.gz archive)
+              commit_message: deploy from CI
+              is_production: 'true'
+      responses:
+        '201':
+          description: Source uploaded and the build was queued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deployment_id, status, message]
+                properties:
+                  deployment_id:
+                    type: string
+                    format: uuid
+                  site_id:
+                    type: string
+                    format: uuid
+                    description: The site the deployment was created for.
+                  status:
+                    type: string
+                  message:
+                    type: string
+              examples:
+                success:
+                  value:
+                    deployment_id: e9d8c7b6-a5f4-4321-8765-1a2b3c4d5e6f
+                    site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                    status: queued
+                    message: Source uploaded, build queued
+        '400':
+          description: Missing project_id or source, or an unsupported archive type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: unsupported file type. Use .zip or .tar.gz
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A rename of the project is in progress; retry once it finishes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                conflict:
+                  value:
+                    error: a rename is in progress for this project
+        '413':
+          description: The upload exceeds the maximum size or the multipart form is malformed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                payload_too_large:
+                  value:
+                    error: upload too large (max 512 MB) or malformed multipart form
+
+  /api/v1/deployments/project/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/projectId'
+    get:
+      tags: [Deploy]
+      operationId: listDeploymentsByProject
+      summary: List a project's deployments, newest first.
+      responses:
+        '200':
+          description: The project's deployments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Deployment'
+              examples:
+                success:
+                  value:
+                    - id: e9d8c7b6-a5f4-4321-8765-1a2b3c4d5e6f
+                      project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                      site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                      user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                      status: live
+                      image_tag: registry.internal/sample-app:e9d8c7b6
+                      is_production: true
+                      started_at: '2026-09-10T11:58:00Z'
+                      finished_at: '2026-09-10T12:00:00Z'
+                      created_at: '2026-09-10T11:57:30Z'
+                      rollback_available: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/deployments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    get:
+      tags: [Deploy]
+      operationId: getDeployment
+      summary: Get one deployment, with its build-queue position.
+      responses:
+        '200':
+          description: The deployment. A live deployment also carries its `domains`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Deployment'
+              examples:
+                live:
+                  summary: A live deployment (carries domains).
+                  value:
+                    id: e9d8c7b6-a5f4-4321-8765-1a2b3c4d5e6f
+                    project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                    site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                    status: live
+                    image_tag: registry.internal/sample-app:e9d8c7b6
+                    build_logs: '...'
+                    domains: ['sample-app.ghayma.app']
+                    queue_position: 0
+                    queue_size: 0
+                    rollback_available: true
+                building:
+                  summary: A queued/building deployment (carries queue position).
+                  value:
+                    id: e9d8c7b6-a5f4-4321-8765-1a2b3c4d5e6f
+                    project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                    site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                    user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                    status: queued
+                    is_production: true
+                    created_at: '2026-09-10T11:57:30Z'
+                    queue_position: 2
+                    queue_size: 3
+                    rollback_available: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/deployments/{id}/logs:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    get:
+      tags: [Deploy]
+      operationId: getDeploymentLogs
+      summary: Get a deployment's build logs.
+      responses:
+        '200':
+          description: The build logs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logs]
+                properties:
+                  logs:
+                    type: string
+              examples:
+                success:
+                  value:
+                    logs: |
+                      => building
+                      => done
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/deployments/{id}/rollback:
+    parameters:
+      - $ref: '#/components/parameters/deploymentId'
+    post:
+      tags: [Deploy]
+      operationId: rollbackDeployment
+      summary: Redeploy a previous deployment's image.
+      description: Re-points the site at the target deployment's built image. The target must have an image.
+      responses:
+        '200':
+          description: A new deployment redeploying the target image.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, status]
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  site_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                  domains:
+                    type: array
+                    items:
+                      type: string
+              examples:
+                success:
+                  value:
+                    id: 1a2b3c4d-5e6f-4071-8293-a4b5c6d7e8f9
+                    site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                    status: live
+                    domains: ['sample-app.ghayma.app']
+        '400':
+          description: The target deployment has no image to roll back to.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: deployment has no image to rollback to
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The rollback cannot proceed: the target is outside the rollback
+            window (only the last successful deployments of a site can be
+            restored), or a rename of the project is in progress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                rollback_unavailable:
+                  value:
+                    error: 'This deployment is outside the rollback window: only the last 10 successful deployments of a site can be restored. Deploy again from source instead.'
+                rename_in_progress:
+                  value:
+                    error: a rename is in progress for this project
+
+  /api/v1/projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/projectPathId'
+    get:
+      tags: [Deploy]
+      operationId: getProject
+      summary: Get a project, with the caller's role.
+      responses:
+        '200':
+          description: The project.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+              examples:
+                success:
+                  value:
+                    id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                    user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                    name: Sample App
+                    slug: sample-app
+                    framework: nextjs
+                    suspended: false
+                    billing_mode: plans
+                    plan: pro
+                    billing_cycle: monthly
+                    sleep_enabled: false
+                    custom_dockerfile_enabled: false
+                    created_at: '2026-09-01T10:15:00Z'
+                    updated_at: '2026-09-10T12:00:00Z'
+                    replicas: 1
+                    cpu_request: 100m
+                    cpu_limit: '1'
+                    memory_request: 256Mi
+                    memory_limit: 512Mi
+                    role: owner
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/projects/{id}/logs:
+    parameters:
+      - $ref: '#/components/parameters/projectPathId'
+    get:
+      tags: [Deploy]
+      operationId: getProjectLogs
+      summary: Get merged pod logs across the project's sites.
+      parameters:
+        - name: lines
+          in: query
+          required: false
+          description: Max lines to return, 1–1000 (default 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: since
+          in: query
+          required: false
+          description: Only return entries at or after this RFC 3339 timestamp.
+          schema:
+            type: string
+            format: date-time
+        - name: search
+          in: query
+          required: false
+          description: Substring filter on the log message.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merged, time-sorted log entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [entries, truncated, site_count]
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LogEntry'
+                  truncated:
+                    type: boolean
+                  site_count:
+                    type: integer
+              examples:
+                success:
+                  value:
+                    entries:
+                      - ts: '2026-09-10T12:00:00Z'
+                        msg: listening on :3000
+                        pod: sample-app-6d5c4b3a2-abcde
+                        container: app
+                        source: stdout
+                    truncated: false
+                    site_count: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/projects/{id}/sites:
+    parameters:
+      - $ref: '#/components/parameters/projectPathId'
+    get:
+      tags: [Deploy]
+      operationId: listProjectSites
+      summary: List a project's sites.
+      responses:
+        '200':
+          description: The project's sites.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Site'
+              examples:
+                success:
+                  value:
+                    - id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                      project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                      name: main
+                      slug: main
+                      is_default: true
+                      status: active
+                      app_tier_slug: app-s
+                      replicas: 1
+                      created_at: '2026-09-01T10:15:00Z'
+                      updated_at: '2026-09-10T12:00:00Z'
+                      default_domain: sample-app.ghayma.app
+                      build_settings:
+                        framework: nextjs
+                        install_command: ''
+                        build_command: ''
+                        start_command: ''
+                        output_directory: ''
+                        port: 3000
+                        dockerfile_path: ''
+                        builder: ''
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/projects/{id}/sites/{siteId}:
+    parameters:
+      - $ref: '#/components/parameters/projectPathId'
+      - $ref: '#/components/parameters/siteId'
+    get:
+      tags: [Deploy]
+      operationId: getProjectSite
+      summary: Get one site of a project.
+      responses:
+        '200':
+          description: The site.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Site'
+              examples:
+                success:
+                  value:
+                    id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                    project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                    name: main
+                    slug: main
+                    is_default: true
+                    status: active
+                    app_tier_slug: app-s
+                    replicas: 1
+                    created_at: '2026-09-01T10:15:00Z'
+                    updated_at: '2026-09-10T12:00:00Z'
+                    default_domain: sample-app.ghayma.app
+                    build_settings:
+                      framework: nextjs
+                      install_command: ''
+                      build_command: ''
+                      start_command: ''
+                      output_directory: ''
+                      port: 3000
+                      dockerfile_path: ''
+                      builder: ''
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage:
+    get:
+      tags: [Storage]
+      operationId: listBuckets
+      summary: List the storage buckets in the key's project.
+      responses:
+        '200':
+          description: The project's buckets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [buckets]
+                properties:
+                  buckets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bucket'
+              examples:
+                success:
+                  value:
+                    buckets:
+                      - id: b1c2d3e4-5f60-4a7b-8c9d-0e1f2a3b4c5d
+                        user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                        project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                        name: assets
+                        garage_bucket: assets-b1c2d3e4
+                        storage_used_bytes: 10485760
+                        storage_limit_bytes: 5368709120
+                        is_public: false
+                        external_access: false
+                        status: active
+                        allowed_origins: ['https://sample.example.com']
+                        created_at: '2026-09-01T10:15:00Z'
+                        updated_at: '2026-09-10T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/storage/{id}:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    get:
+      tags: [Storage]
+      operationId: getBucket
+      summary: Get one storage bucket.
+      responses:
+        '200':
+          description: The bucket.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bucket]
+                properties:
+                  bucket:
+                    $ref: '#/components/schemas/Bucket'
+              examples:
+                success:
+                  value:
+                    bucket:
+                      id: b1c2d3e4-5f60-4a7b-8c9d-0e1f2a3b4c5d
+                      user_id: 3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f
+                      project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+                      name: assets
+                      garage_bucket: assets-b1c2d3e4
+                      storage_used_bytes: 10485760
+                      storage_limit_bytes: 5368709120
+                      is_public: false
+                      external_access: false
+                      status: active
+                      allowed_origins: ['https://sample.example.com']
+                      created_at: '2026-09-01T10:15:00Z'
+                      updated_at: '2026-09-10T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage/{id}/credentials:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    get:
+      tags: [Storage]
+      operationId: getBucketCredentials
+      summary: Get a bucket's S3 credentials.
+      description: Grants full S3 read+write to the bucket, so requires write access.
+      responses:
+        '200':
+          description: S3 credentials for the bucket.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [credentials]
+                properties:
+                  credentials:
+                    $ref: '#/components/schemas/BucketCredentials'
+              examples:
+                success:
+                  value:
+                    credentials:
+                      access_key: GK-example-access-key
+                      secret_key: example-secret-key
+                      bucket: assets-b1c2d3e4
+                      endpoint: 'https://s3.ghayma.app'
+                      region: garage
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage/{id}/presign/upload:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    post:
+      tags: [Storage]
+      operationId: presignUpload
+      summary: Mint a presigned URL to upload an object.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+                expiry:
+                  type: integer
+                  description: URL lifetime in seconds (default 3600, max 604800).
+            example:
+              key: images/photo.jpg
+              expiry: 3600
+      responses:
+        '200':
+          description: The presigned upload URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upload_url, expires_in]
+                properties:
+                  upload_url:
+                    type: string
+                  expires_in:
+                    type: integer
+              examples:
+                success:
+                  value:
+                    upload_url: 'https://s3.ghayma.app/assets-b1c2d3e4/images/photo.jpg?X-Amz-Signature=example'
+                    expires_in: 3600
+        '400':
+          description: Missing or invalid key, or an expiry over the maximum.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: expiry too long (max 604800 seconds)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage/{id}/presign/download:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    post:
+      tags: [Storage]
+      operationId: presignDownload
+      summary: Mint a presigned URL to download an object.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+                expiry:
+                  type: integer
+                  description: URL lifetime in seconds (default 3600, max 604800).
+            example:
+              key: images/photo.jpg
+      responses:
+        '200':
+          description: The presigned download URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [download_url, expires_in]
+                properties:
+                  download_url:
+                    type: string
+                  expires_in:
+                    type: integer
+              examples:
+                success:
+                  value:
+                    download_url: 'https://s3.ghayma.app/assets-b1c2d3e4/images/photo.jpg?X-Amz-Signature=example'
+                    expires_in: 3600
+        '400':
+          description: Missing or invalid key, or an expiry over the maximum.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: 'invalid object key'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage/{id}/objects:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    get:
+      tags: [Storage]
+      operationId: listObjects
+      summary: List objects and folders in a bucket.
+      parameters:
+        - name: prefix
+          in: query
+          required: false
+          description: Only list keys under this prefix (e.g. "images/").
+          schema:
+            type: string
+        - name: continuation_token
+          in: query
+          required: false
+          description: Page token from a previous response's `continuation_token`.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of objects and the folders (common prefixes) at this level.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [objects, folders, continuation_token, is_truncated]
+                properties:
+                  objects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StorageObject'
+                  folders:
+                    type: array
+                    items:
+                      type: string
+                  continuation_token:
+                    type: string
+                  is_truncated:
+                    type: boolean
+              examples:
+                success:
+                  value:
+                    objects:
+                      - key: images/photo.jpg
+                        size: 20480
+                        last_modified: '2026-09-10T12:00:00Z'
+                        etag: '"9a0b1c2d3e4f"'
+                        is_folder: false
+                    folders: ['images/']
+                    continuation_token: ''
+                    is_truncated: false
+        '400':
+          description: The bucket could not be listed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: 'failed to list objects'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Storage]
+      operationId: deleteObject
+      summary: Delete one object from a bucket.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+            example:
+              key: images/photo.jpg
+      responses:
+        '200':
+          description: The object was deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+              examples:
+                success:
+                  value:
+                    message: deleted
+        '400':
+          description: Missing key or the delete failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: key is required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage/{id}/objects/upload:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    post:
+      tags: [Storage]
+      operationId: uploadObject
+      summary: Upload an object (or create a folder placeholder).
+      description: |
+        Multipart upload of a single object under `key`. A `key` ending in `/`
+        creates a folder placeholder and must not carry a file part; any other
+        key requires a `file` part.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+                  description: The object bytes; omit only for a folder placeholder (key ends with "/").
+            example:
+              key: images/photo.jpg
+              file: (binary file contents)
+      responses:
+        '200':
+          description: The object was uploaded, or the folder placeholder was created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, key]
+                properties:
+                  message:
+                    type: string
+                  key:
+                    type: string
+              examples:
+                success:
+                  value:
+                    message: uploaded
+                    key: images/photo.jpg
+                folder_created:
+                  value:
+                    message: folder created
+                    key: images/
+        '400':
+          description: Missing or invalid key, missing file, or an ambiguous folder-plus-file request.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: key is required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          description: The object exceeds the maximum size or the multipart form is malformed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                payload_too_large:
+                  value:
+                    error: upload too large (max 100 MB) or malformed multipart form
+
+  /api/v1/storage/{id}/objects/download:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    get:
+      tags: [Storage]
+      operationId: downloadObject
+      summary: Download an object's bytes.
+      parameters:
+        - name: key
+          in: query
+          required: true
+          description: The object key to download.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The object bytes, with content-type and attachment headers.
+          headers:
+            Content-Type:
+              description: The object's stored content type.
+              schema:
+                type: string
+            Content-Length:
+              description: The object size in bytes; present when known.
+              schema:
+                type: integer
+            Content-Disposition:
+              description: attachment; filename="<last path segment of the key>".
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Missing key or the object could not be read.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: key query param is required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/storage/{id}/objects/info:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    get:
+      tags: [Storage]
+      operationId: getObjectInfo
+      summary: Get one object's metadata (HEAD).
+      parameters:
+        - name: key
+          in: query
+          required: true
+          description: The object key to describe.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The object's metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectMetadata'
+              examples:
+                success:
+                  value:
+                    key: images/photo.jpg
+                    size: 20480
+                    content_type: image/jpeg
+                    etag: '"9a0b1c2d3e4f"'
+                    last_modified: '2026-09-10T12:00:00Z'
+        '400':
+          description: Missing key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: key query param is required
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/v1/storage/{id}/objects/delete-batch:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    post:
+      tags: [Storage]
+      operationId: deleteObjectsBatch
+      summary: Delete up to 1000 objects by key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keys]
+              properties:
+                keys:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: string
+            example:
+              keys: ['images/a.jpg', 'images/b.jpg']
+      responses:
+        '200':
+          description: The keys deleted, and per-key errors for any that failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, errors]
+                properties:
+                  deleted:
+                    type: array
+                    items:
+                      type: string
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DeleteError'
+              examples:
+                success:
+                  value:
+                    deleted: ['images/a.jpg', 'images/b.jpg']
+                    errors: []
+        '400':
+          description: Missing, empty, or over-limit keys array.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: keys must be non-empty
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/v1/storage/{id}/objects/delete-prefix:
+    parameters:
+      - $ref: '#/components/parameters/bucketId'
+    post:
+      tags: [Storage]
+      operationId: deleteObjectsByPrefix
+      summary: Delete every object under a prefix.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prefix]
+              properties:
+                prefix:
+                  type: string
+            example:
+              prefix: images/
+      responses:
+        '200':
+          description: How many objects were deleted, and per-key errors for any that failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted_count, errors]
+                properties:
+                  deleted_count:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DeleteError'
+              examples:
+                success:
+                  value:
+                    deleted_count: 12
+                    errors: []
+        '400':
+          description: Missing or empty prefix (refusing to delete the whole bucket).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_request:
+                  value:
+                    error: prefix must be non-empty (refusing to delete entire bucket)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+components:
+  parameters:
+    authAppId:
+      name: id
+      in: path
+      required: true
+      description: Auth app id (the `id` UUID; the `app_id` slug is accepted by the key binding but the handler resolves by id).
+      schema:
+        type: string
+        format: uuid
+    userId:
+      name: userId
+      in: path
+      required: true
+      description: End-user id within the auth app.
+      schema:
+        type: string
+        format: uuid
+    databaseId:
+      name: id
+      in: path
+      required: true
+      description: Managed database id.
+      schema:
+        type: string
+        format: uuid
+    bucketId:
+      name: id
+      in: path
+      required: true
+      description: Storage bucket id.
+      schema:
+        type: string
+        format: uuid
+    deploymentId:
+      name: id
+      in: path
+      required: true
+      description: Deployment id.
+      schema:
+        type: string
+        format: uuid
+    projectPathId:
+      name: id
+      in: path
+      required: true
+      description: Project id or slug (the handler resolves either).
+      schema:
+        type: string
+      example: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+    projectId:
+      name: projectId
+      in: path
+      required: true
+      description: Project id or slug (the handler resolves either).
+      schema:
+        type: string
+      example: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
+    siteId:
+      name: siteId
+      in: path
+      required: true
+      description: Site id within the project.
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    projectKey:
+      type: http
+      scheme: bearer
+      description: 'A project API key `gsk_…`, sent as `Authorization: Bearer gsk_…`.'
+  headers:
+    RetryAfter:
+      description: Seconds until the tripped limit resets.
+      schema:
+        type: integer
+  responses:
+    Unauthorized:
+      description: |
+        No usable project key: the `Authorization` header is missing or
+        malformed, or the key is unknown, revoked or expired.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unauthorized:
+              value:
+                error: invalid key
+    Forbidden:
+      description: |
+        The key is valid but not entitled: the route is not on the project-key
+        allowlist, or the key lacks the capability the route requires.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            forbidden:
+              value:
+                error: project keys cannot access this route
+    NotFound:
+      description: |
+        No such resource for this key. Because a key is scoped to its own
+        project, a resource that belongs to another project is reported as
+        not found rather than forbidden.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            not_found:
+              value:
+                error: not found
+    RateLimited:
+      description: Too many requests for this key.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            rate_limited:
+              value:
+                error: too many requests, please try again later
+                code: rate_limited
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          description: Machine-readable reason, present on newer endpoints.
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    AuthApp:
+      type: object
+      description: An auth app's configuration, as the management plane renders it. Signing keys and the server key are never included.
+      required:
+        - id
+        - user_id
+        - project_id
+        - name
+        - app_id
+        - status
+        - allowed_origins
+        - email_verification_required
+        - google_oauth_enabled
+        - google_native_client_ids
+        - github_oauth_enabled
+        - auth_tier_slug
+        - two_fa_enabled
+        - sms_enabled
+        - two_fa_policy
+        - reset_url
+        - email_locale
+        - jwt_expiry_seconds
+        - refresh_expiry_seconds
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          description: The app owner's platform user id.
+        project_id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+          description: Present when the app is owned by a team.
+        name:
+          type: string
+        app_id:
+          type: string
+          description: Public app identifier the `@ghayma/auth` clients are configured with.
+        status:
+          type: string
+          example: active
+        allowed_origins:
+          type: array
+          items:
+            type: string
+        email_verification_required:
+          type: boolean
+        google_oauth_enabled:
+          type: boolean
+        google_client_id:
+          type: string
+          description: Omitted when empty.
+        google_native_client_ids:
+          type: array
+          description: Native client IDs accepted by the auth service's id-token endpoint.
+          items:
+            type: string
+        github_oauth_enabled:
+          type: boolean
+        github_client_id:
+          type: string
+          description: Omitted when empty.
+        auth_tier_slug:
+          type: string
+          description: Capacity bracket from auth_tiers (1k | 10k | 100k | 1m).
+        two_fa_enabled:
+          type: boolean
+        sms_enabled:
+          type: boolean
+        two_fa_policy:
+          type: string
+          description: 'disabled | optional | enforced, or "" on apps where a policy was never set.'
+        reset_url:
+          type: string
+          description: Custom reset-page URL; empty string means the hosted reset form is used.
+        email_locale:
+          type: string
+          enum: [en, fr, ar]
+        jwt_expiry_seconds:
+          type: integer
+        refresh_expiry_seconds:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AuthUser:
+      type: object
+      description: An end user of the auth app, as the management plane renders it. The phone number itself is never selected.
+      required:
+        - id
+        - app_id
+        - email
+        - name
+        - email_verified
+        - provider
+        - disabled
+        - app_metadata
+        - phone_verified
+        - totp_enabled
+        - whatsapp_otp_enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          description: Empty string when the account has no name.
+        avatar_url:
+          type: string
+          description: Omitted when empty.
+        email_verified:
+          type: boolean
+        provider:
+          type: string
+          enum: [email, google, github]
+        disabled:
+          type: boolean
+        app_metadata:
+          type: object
+          additionalProperties: true
+          description: Developer-owned bag (roles, plan, tenant id), embedded in the end user's access token.
+        phone_verified:
+          type: boolean
+        totp_enabled:
+          type: boolean
+        whatsapp_otp_enabled:
+          type: boolean
+          description: Always false — the WhatsApp factor is not offered.
+        last_login_at:
+          type: string
+          format: date-time
+          description: Omitted until the first successful sign-in.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AuthProviderCount:
+      type: object
+      required: [provider, count]
+      properties:
+        provider:
+          type: string
+        count:
+          type: integer
+    AuthEvent:
+      type: object
+      description: One row of an auth app's event log.
+      required: [id, app_id, event, ip, user_agent, success, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          description: Omitted for events not tied to a user.
+        event:
+          type: string
+          description: Event name, e.g. "login" or "signup".
+        ip:
+          type: string
+        user_agent:
+          type: string
+        success:
+          type: boolean
+        details:
+          type: string
+          description: Omitted when empty.
+        created_at:
+          type: string
+          format: date-time
+    AuthStats:
+      type: object
+      description: Aggregate counters for an auth app plus its 20 most recent events.
+      required:
+        - total_users
+        - verified_users
+        - active_sessions
+        - signups_today
+        - signups_week
+        - signups_month
+        - events_today
+        - events_week
+        - logins_today
+        - provider_breakdown
+        - recent_events
+      properties:
+        total_users:
+          type: integer
+        verified_users:
+          type: integer
+        active_sessions:
+          type: integer
+        signups_today:
+          type: integer
+        signups_week:
+          type: integer
+        signups_month:
+          type: integer
+        events_today:
+          type: integer
+        events_week:
+          type: integer
+        logins_today:
+          type: integer
+        provider_breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthProviderCount'
+        recent_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthEvent'
+    Database:
+      type: object
+      description: A managed database. Resource fields are resolved from the row's tier at render time.
+      required:
+        - id
+        - user_id
+        - name
+        - type
+        - version
+        - status
+        - host
+        - port
+        - tier_slug
+        - cpu_request
+        - cpu_limit
+        - memory_request
+        - memory_limit
+        - cpu_milli
+        - memory_mb
+        - storage_mb
+        - storage_used_bytes
+        - disk_gb
+        - backup_tier_slug
+        - replica_set
+        - external_access
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+          description: Omitted for a database not attached to a project.
+        team_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [postgres, mongodb, redis]
+          description: redis is legacy — no new redis databases are provisioned, but pre-existing rows still report it.
+        version:
+          type: string
+        status:
+          type: string
+          enum: [provisioning, running, stopped, error]
+        host:
+          type: string
+        port:
+          type: integer
+        db_name:
+          type: string
+          description: Omitted when empty.
+        username:
+          type: string
+          description: Omitted when empty.
+        tier_slug:
+          type: string
+          description: Sizing bracket from database_tiers — the persisted sizing decision.
+        cpu_request:
+          type: string
+        cpu_limit:
+          type: string
+        memory_request:
+          type: string
+        memory_limit:
+          type: string
+        cpu_milli:
+          type: integer
+        memory_mb:
+          type: integer
+        storage_mb:
+          type: integer
+        storage_used_bytes:
+          type: integer
+          format: int64
+        disk_gb:
+          type: integer
+          description: Persistent-disk footprint in GB — the points-priced disk blocks.
+        backup_tier_slug:
+          type: string
+          enum: [weekly, daily, sixhourly]
+        max_connections:
+          type: integer
+          description: Omitted when zero.
+        replica_set:
+          type: boolean
+        external_access:
+          type: boolean
+        external_host:
+          type: string
+          description: Present only when external access is enabled.
+        external_port:
+          type: integer
+          description: Present only when external access is enabled.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DatabaseCredentials:
+      type: object
+      description: Connection details for a managed database, read from its Kubernetes secret.
+      required: [type, host, port, username, password, database, internal_url, external_access]
+      properties:
+        type:
+          type: string
+          enum: [postgres, mongodb, redis]
+        host:
+          type: string
+        port:
+          type: integer
+        username:
+          type: string
+        password:
+          type: string
+        database:
+          type: string
+        internal_url:
+          type: string
+          description: In-cluster connection string — always present.
+        external_access:
+          type: boolean
+        external_host:
+          type: string
+          description: Present only when external access is enabled.
+        external_port:
+          type: integer
+          description: Present only when external access is enabled.
+        external_url:
+          type: string
+          description: Present only when external access is enabled.
+    DatabaseMetrics:
+      type: object
+      description: Live metrics for a running database. Only `status` is set when the database is not running.
+      required: [status, size_bytes, size_readable, active_connections]
+      properties:
+        status:
+          type: string
+          enum: [provisioning, running, stopped, error]
+        uptime_hours:
+          type: number
+          description: Omitted when zero.
+        size_bytes:
+          type: integer
+          format: int64
+        size_readable:
+          type: string
+          description: Human-readable form of size_bytes, e.g. "12.4 MB".
+        active_connections:
+          type: integer
+        max_connections:
+          type: integer
+          description: Omitted when zero.
+        extra:
+          type: object
+          additionalProperties: true
+          description: |
+            Engine-specific counters. postgres: table_count, total_rows,
+            cache_hit_ratio, index_usage_ratio, dead_tuples. mongodb: data_size,
+            objects, collections, indexes.
+    Bucket:
+      type: object
+      description: A storage bucket in the key's project.
+      required:
+        - id
+        - user_id
+        - name
+        - garage_bucket
+        - storage_used_bytes
+        - storage_limit_bytes
+        - is_public
+        - external_access
+        - status
+        - allowed_origins
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+          description: Omitted for a bucket not attached to a project.
+        team_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        garage_bucket:
+          type: string
+          description: Underlying S3 bucket name — pass this as the bucket to an S3 client.
+        storage_used_bytes:
+          type: integer
+          format: int64
+        storage_limit_bytes:
+          type: integer
+          format: int64
+        is_public:
+          type: boolean
+        external_access:
+          type: boolean
+        status:
+          type: string
+          enum: [provisioning, active, error]
+        allowed_origins:
+          type: array
+          description: CORS allow-list pushed to the S3 layer.
+          items:
+            type: string
+        project_linked_at:
+          type: string
+          format: date-time
+          description: When the bucket was linked to its project; omitted when never linked.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    BucketCredentials:
+      type: object
+      description: S3 credentials for a bucket — feed straight into any S3 client.
+      required: [access_key, secret_key, bucket, endpoint, region]
+      properties:
+        access_key:
+          type: string
+        secret_key:
+          type: string
+        bucket:
+          type: string
+          description: Underlying S3 bucket name (not the Ghayma bucket id).
+        endpoint:
+          type: string
+        region:
+          type: string
+    StorageObject:
+      type: object
+      description: An object or folder listed in a bucket.
+      required: [key, size, last_modified, is_folder]
+      properties:
+        key:
+          type: string
+        size:
+          type: integer
+          format: int64
+        last_modified:
+          type: string
+          format: date-time
+        etag:
+          type: string
+          description: Omitted when empty.
+        is_folder:
+          type: boolean
+    ObjectMetadata:
+      type: object
+      description: Metadata for a single object, from a HEAD.
+      required: [key, size, last_modified]
+      properties:
+        key:
+          type: string
+        size:
+          type: integer
+          format: int64
+        content_type:
+          type: string
+          description: Omitted when empty.
+        etag:
+          type: string
+          description: Omitted when empty.
+        last_modified:
+          type: string
+          format: date-time
+        cache_control:
+          type: string
+          description: Omitted when empty.
+        content_encoding:
+          type: string
+          description: Omitted when empty.
+        content_disposition:
+          type: string
+          description: Omitted when empty.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: User metadata; omitted when empty.
+    DeleteError:
+      type: object
+      description: One key that could not be deleted, with the reason.
+      required: [key, error]
+      properties:
+        key:
+          type: string
+        error:
+          type: string
+    Deployment:
+      type: object
+      description: |
+        A build/deploy of a project site. A live deployment is returned as a
+        trimmed shape (id, project_id, site_id, status, image_tag, build_logs,
+        domains) plus the queue fields; a queued or building one carries the
+        full record plus the queue fields — hence only id, project_id and
+        status are always present.
+      required: [id, project_id, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        site_id:
+          type: string
+          format: uuid
+          description: Omitted when the deployment predates sites.
+        user_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          description: e.g. queued, building, live, failed.
+        image_tag:
+          type: string
+          description: Omitted until the build produces an image.
+        build_logs:
+          type: string
+          description: Omitted when empty.
+        commit_message:
+          type: string
+          description: Omitted when empty.
+        is_production:
+          type: boolean
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        queue_position:
+          type: integer
+          description: 1-based rank among queued builds in the same queue; 0 once the build has started.
+        queue_size:
+          type: integer
+          description: How many deployments are currently queued in that queue.
+        rollback_available:
+          type: boolean
+          description: Computed — whether this deployment is still within the rollback window and restorable.
+        domains:
+          type: array
+          description: Live domains, included on a live deployment.
+          items:
+            type: string
+    Project:
+      type: object
+      description: A project, with the caller's role and the plan-derived resource shape.
+      required:
+        - id
+        - user_id
+        - name
+        - slug
+        - framework
+        - suspended
+        - billing_mode
+        - billing_cycle
+        - sleep_enabled
+        - custom_dockerfile_enabled
+        - created_at
+        - updated_at
+        - replicas
+        - cpu_request
+        - cpu_limit
+        - memory_request
+        - memory_limit
+        - role
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        team_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        framework:
+          type: string
+        suspended:
+          type: boolean
+        suspended_reason:
+          type: string
+        suspended_kind:
+          type: string
+        suspended_at:
+          type: string
+          format: date-time
+        rename_status:
+          type: string
+        rename_error:
+          type: string
+        billing_mode:
+          type: string
+          enum: [plans, payg]
+        plan:
+          type: string
+          nullable: true
+          description: Bundle slug in plans mode; null in PAYG mode.
+        billing_account_id:
+          type: string
+          format: uuid
+        billing_cycle:
+          type: string
+          enum: [monthly, yearly]
+        yearly_period_start:
+          type: string
+          format: date-time
+        yearly_period_end:
+          type: string
+          format: date-time
+        pending_plan:
+          type: string
+        pending_plan_effective_at:
+          type: string
+          format: date-time
+        sleep_enabled:
+          type: boolean
+        last_woken_at:
+          type: string
+          format: date-time
+        custom_dockerfile_enabled:
+          type: boolean
+        build_command:
+          type: string
+        install_command:
+          type: string
+        start_command:
+          type: string
+        output_directory:
+          type: string
+        port:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        replicas:
+          type: integer
+        cpu_request:
+          type: string
+        cpu_limit:
+          type: string
+        memory_request:
+          type: string
+        memory_limit:
+          type: string
+        role:
+          type: string
+          description: The caller's role on the project (owner | admin | member | viewer).
+    BuildSettings:
+      type: object
+      description: A site's effective build configuration.
+      required: [framework, install_command, build_command, start_command, output_directory, port, dockerfile_path, builder]
+      properties:
+        framework:
+          type: string
+        install_command:
+          type: string
+        build_command:
+          type: string
+        start_command:
+          type: string
+        output_directory:
+          type: string
+        port:
+          type: integer
+        dockerfile_path:
+          type: string
+        builder:
+          type: string
+    Site:
+      type: object
+      description: A deployable site within a project, with its default domain and build settings.
+      required:
+        - id
+        - project_id
+        - name
+        - slug
+        - is_default
+        - status
+        - app_tier_slug
+        - replicas
+        - created_at
+        - updated_at
+        - default_domain
+        - build_settings
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        is_default:
+          type: boolean
+        status:
+          type: string
+        app_tier_slug:
+          type: string
+        replicas:
+          type: integer
+        rename_status:
+          type: string
+        rename_error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        default_domain:
+          type: string
+        build_settings:
+          $ref: '#/components/schemas/BuildSettings'
+    LogEntry:
+      type: object
+      description: One log line from a site's pods.
+      required: [ts, msg, pod, container, source]
+      properties:
+        ts:
+          type: string
+          format: date-time
+        msg:
+          type: string
+        pod:
+          type: string
+        container:
+          type: string
+        source:
+          type: string
