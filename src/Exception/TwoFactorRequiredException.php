@@ -7,18 +7,23 @@ namespace Ghayma\Sdk\Exception;
 use Ghayma\Sdk\Model\LoginResult;
 use Ghayma\Sdk\Model\TwoFaEnrollmentRequired;
 use Ghayma\Sdk\Model\TwoFaRequired;
+use InvalidArgumentException;
 
 /**
  * Thrown by the OAuth sign-in methods when the app's 2FA policy applies to the
- * user; no session was created. `$result` holds the pending step and its token:
- * a {@see TwoFaRequired} finishes with verify2fa(), a {@see TwoFaEnrollmentRequired}
- * with enrollTotp() + confirmTotp().
+ * user; no session was created. `$result` is always a {@see TwoFaRequired}
+ * (finish with verify2fa()) or a {@see TwoFaEnrollmentRequired} (finish with
+ * enrollTotp() + confirmTotp()), carrying the token to finish with.
  */
 final class TwoFactorRequiredException extends GhaymaException
 {
+    /** @throws InvalidArgumentException when `$result` is not a pending second-factor step */
     public function __construct(
         public readonly LoginResult $result,
     ) {
+        if (!$result instanceof TwoFaRequired && !$result instanceof TwoFaEnrollmentRequired) {
+            throw new InvalidArgumentException('expected TwoFaRequired or TwoFaEnrollmentRequired, got ' . $result::class);
+        }
         $enrolment = $result instanceof TwoFaEnrollmentRequired;
 
         parent::__construct(
