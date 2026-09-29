@@ -8,6 +8,7 @@ use Ghayma\Sdk\Exception\ForbiddenException;
 use Ghayma\Sdk\Exception\InvalidGrantException;
 use Ghayma\Sdk\Exception\InvalidTokenException;
 use Ghayma\Sdk\Exception\RateLimitedException;
+use Ghayma\Sdk\Exception\TwoFactorRequiredException;
 use Ghayma\Sdk\Exception\UnauthorizedException;
 use Ghayma\Sdk\GhaymaAuth;
 use Ghayma\Sdk\Model\EmailChangeRequest;
@@ -123,9 +124,30 @@ final class AuthConformanceTest extends TestCase
 
     public function testOAuthExchangeAndIdToken(): void
     {
-        $this->prefer->prefer(null);
+        $this->prefer->prefer('code=200, example=success');
         $this->assertInstanceOf(Session::class, $this->auth->exchangeCode('6d3b17f0c94a', 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk', '203.0.113.10'));
         $this->assertInstanceOf(Session::class, $this->auth->signInWithIdToken('eyJid...', '7f3a1c9e0b52', '203.0.113.10'));
+    }
+
+    public function testOAuthPendingSecondFactor(): void
+    {
+        $signIns = [
+            fn () => $this->auth->exchangeCode('6d3b17f0c94a', 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk', '203.0.113.10'),
+            fn () => $this->auth->signInWithIdToken('eyJid...', '7f3a1c9e0b52', '203.0.113.10'),
+        ];
+        $pending = ['two_fa_required' => TwoFaRequired::class, 'enrollment_required' => TwoFaEnrollmentRequired::class];
+
+        foreach ($signIns as $signIn) {
+            foreach ($pending as $example => $class) {
+                $this->prefer->prefer('code=200, example=' . $example);
+                try {
+                    $signIn();
+                    $this->fail('expected TwoFactorRequiredException');
+                } catch (TwoFactorRequiredException $e) {
+                    $this->assertInstanceOf($class, $e->result);
+                }
+            }
+        }
     }
 
     public function testOAuthErrors(): void
