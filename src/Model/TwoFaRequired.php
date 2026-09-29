@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ghayma\Sdk\Model;
 
-/** The password verified but the user holds a second factor; finish at verify2fa(). */
+/** The first factor verified (password or OAuth sign-in) but the user holds a second factor; finish at verify2fa(). */
 final readonly class TwoFaRequired implements LoginResult
 {
     use DecodesData;

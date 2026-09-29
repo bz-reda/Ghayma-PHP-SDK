@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Ghayma\Sdk\Model;
 
-/** Discriminates a /login response into the right {@see LoginResult} variant by its keys. */
+/** Discriminates a /login or OAuth sign-in response into the right {@see LoginResult} variant by its keys. */
 final class LoginResultFactory
 {
     /** @param array<string, mixed> $d */
