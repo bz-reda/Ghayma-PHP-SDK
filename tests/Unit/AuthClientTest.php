@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ghayma\Sdk\Tests\Unit;
 
+use Ghayma\Sdk\Exception\ForbiddenException;
 use Ghayma\Sdk\Exception\GhaymaException;
 use Ghayma\Sdk\Exception\TwoFactorRequiredException;
 use Ghayma\Sdk\GhaymaAuth;
@@ -277,6 +278,31 @@ final class AuthClientTest extends TestCase
             $this->assertInstanceOf(TwoFaEnrollmentRequired::class, $e->result);
             $this->assertSame('7b2e', $e->result->enrollToken);
             $this->assertSame(['totp'], $e->result->methods);
+        }
+    }
+
+    public function testSignInWithIdTokenEmailRefusalsKeepTheirCode(): void
+    {
+        $client = (new RecordingClient())
+            ->queueJson(403, ['error' => "Your Google account's email address is not verified", 'code' => 'email_not_verified'])
+            ->queueJson(409, ['error' => 'An account with this email already exists and its email address is not verified', 'code' => 'account_email_unverified']);
+        $auth = $this->auth($client);
+
+        try {
+            $auth->signInWithIdToken('eyJid...');
+            $this->fail('expected ForbiddenException');
+        } catch (ForbiddenException $e) {
+            $this->assertSame(403, $e->status);
+            $this->assertSame('email_not_verified', $e->errorCode);
+        }
+
+        try {
+            $auth->signInWithIdToken('eyJid...');
+            $this->fail('expected GhaymaException');
+        } catch (GhaymaException $e) {
+            $this->assertSame(GhaymaException::class, $e::class);
+            $this->assertSame(409, $e->status);
+            $this->assertSame('account_email_unverified', $e->errorCode);
         }
     }
 
