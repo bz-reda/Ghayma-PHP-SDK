@@ -9,6 +9,7 @@ OAuth sign-in surfaces the app's second factor (TOTP 2FA) instead of a session.
 - `exchangeCode()` and `signInWithIdToken()` throw the new `TwoFactorRequiredException` when the app's 2FA policy applies to the user. No session was created: `$e->result` is the pending step, a `TwoFaRequired` (finish with `verify2fa()`) or a `TwoFaEnrollmentRequired` (finish with `enrollTotp()` + `confirmTotp()`). `errorCode` is `two_fa_required` or `two_fa_enrollment_required`; `status` is 200.
 - The exception extends `GhaymaException`, so an existing `catch (GhaymaException $e)` treats the pending step as a stopped sign-in. Public signatures are unchanged, and both methods still return the `Session` when no second factor applies.
 - `spec/auth.v1.yaml`: `POST /oauth/exchange` and `POST /oauth/id-token` now answer like `POST /login`, with a session or a pending second-factor step.
+- `signInWithIdToken()` can be refused for an unverified email, surfaced through the existing error mapping with `errorCode` kept: `email_not_verified` (403, `ForbiddenException`; Google has not verified the email) and `account_email_unverified` (409, `GhaymaException`; a password account with that email was never verified: verify it or reset the password first).
 - Upgrade note: 0.1.0 cannot decode the pending step; against the updated auth service those two methods fail with a PHP `ValueError` (no session is issued).
 
 ## 0.1.0 - 2026-09-12
