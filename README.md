@@ -105,6 +105,29 @@ $session = $auth->signInWithIdToken($googleIdToken, $nonce, $clientIp); // nativ
 
 The `redirect_uri` must match one of the app's **Allowed Origins**, and native client IDs must be registered under **Native client IDs**, both in the console. See the mobile OAuth guide: <https://docs.ghayma.cloud/guides/oauth-mobile>.
 
+### Second factor on OAuth sign-in
+
+When the app's 2FA policy applies to the user, `exchangeCode()` and `signInWithIdToken()` create no session and throw a `TwoFactorRequiredException`. Its `result` is the same pending step `login()` returns, finished the same way:
+
+```php
+use Ghayma\Sdk\Exception\TwoFactorRequiredException;
+use Ghayma\Sdk\Model\TwoFaEnrollmentRequired;
+use Ghayma\Sdk\Model\TwoFaRequired;
+
+try {
+    $session = $auth->exchangeCode($code, $codeVerifier, $clientIp);
+} catch (TwoFactorRequiredException $e) {
+    if ($e->result instanceof TwoFaRequired) {
+        $session = $auth->verify2fa($e->result->challengeToken, $totpCode);
+    } elseif ($e->result instanceof TwoFaEnrollmentRequired) {
+        $enrollment   = $auth->enrollTotp($e->result->enrollToken);            // render $enrollment->otpauthUri as a QR
+        $confirmation = $auth->confirmTotp($totpCode, $e->result->enrollToken); // ->session, ->recoveryCodes
+    }
+}
+```
+
+`$e->errorCode` is `two_fa_required` or `two_fa_enrollment_required`, and `$e->status` is 200. The exception extends `GhaymaException`, so a broad `catch (GhaymaException $e)` still stops the sign-in; catch `TwoFactorRequiredException` first to offer the second factor.
+
 ## Errors
 
 Every failure is a `Ghayma\Sdk\Exception\GhaymaException` carrying `status`, `errorCode` and (on a 429) `retryAfter`. Catch the base type broadly, or a subclass to branch:
@@ -118,6 +141,7 @@ Every failure is a `Ghayma\Sdk\Exception\GhaymaException` carrying `status`, `er
 | `InvalidGrantException` | an expired or already-spent token/code (`code: invalid_grant`) |
 | `InvalidTokenException` | a token that failed verification (`code: invalid_token`) |
 | `NetworkException` | a transport failure before any HTTP status (`status` 0) |
+| `TwoFactorRequiredException` | an OAuth sign-in stopped at the second factor (`status` 200); `result` holds the pending step, see [Second factor on OAuth sign-in](#second-factor-on-oauth-sign-in) |
 
 ```php
 use Ghayma\Sdk\Exception\RateLimitedException;
