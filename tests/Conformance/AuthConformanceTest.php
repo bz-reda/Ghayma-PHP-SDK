@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Ghayma\Sdk\Tests\Conformance;
 
 use Ghayma\Sdk\Exception\ForbiddenException;
-use Ghayma\Sdk\Exception\GhaymaException;
 use Ghayma\Sdk\Exception\InvalidGrantException;
 use Ghayma\Sdk\Exception\InvalidTokenException;
 use Ghayma\Sdk\Exception\RateLimitedException;
@@ -170,7 +169,7 @@ final class AuthConformanceTest extends TestCase
         }
     }
 
-    public function testIdTokenEmailRefusals(): void
+    public function testIdTokenEmailNotVerified(): void
     {
         $this->prefer->prefer('code=403, example=email_not_verified');
         try {
@@ -178,15 +177,6 @@ final class AuthConformanceTest extends TestCase
             $this->fail('expected ForbiddenException');
         } catch (ForbiddenException $e) {
             $this->assertSame('email_not_verified', $e->errorCode);
-        }
-
-        $this->prefer->prefer('code=409, example=account_email_unverified');
-        try {
-            $this->auth->signInWithIdToken('eyJid...');
-            $this->fail('expected GhaymaException');
-        } catch (GhaymaException $e) {
-            $this->assertSame(409, $e->status);
-            $this->assertSame('account_email_unverified', $e->errorCode);
         }
     }
 

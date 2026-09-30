@@ -105,10 +105,7 @@ $session = $auth->signInWithIdToken($googleIdToken, $nonce, $clientIp); // nativ
 
 The `redirect_uri` must match one of the app's **Allowed Origins**, and native client IDs must be registered under **Native client IDs**, both in the console. See the mobile OAuth guide: <https://docs.ghayma.cloud/guides/oauth-mobile>.
 
-`signInWithIdToken()` also refuses two email cases, through the usual [error mapping](#errors) with `errorCode` kept:
-
-- `email_not_verified` (403, `ForbiddenException`): Google has not verified the account's email address.
-- `account_email_unverified` (409, `GhaymaException`): a password account with this email exists and has never verified it. The user verifies that email (signing in with the password) or resets the password first, then tries Google again.
+`signInWithIdToken()` refuses a Google account whose email address Google has not verified: a 403 `ForbiddenException` with `errorCode` `email_not_verified`, through the usual [error mapping](#errors).
 
 ### Second factor on OAuth sign-in
 
