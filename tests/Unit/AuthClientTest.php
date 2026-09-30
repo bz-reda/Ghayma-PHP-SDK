@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Ghayma\Sdk\Tests\Unit;
 
+use Ghayma\Sdk\Exception\ForbiddenException;
+use Ghayma\Sdk\Exception\GhaymaException;
+use Ghayma\Sdk\Exception\TwoFactorRequiredException;
 use Ghayma\Sdk\GhaymaAuth;
 use Ghayma\Sdk\Model\LoginSuccess;
 use Ghayma\Sdk\Model\RegisterSuccess;
@@ -47,6 +50,24 @@ final class AuthClientTest extends TestCase
                 'created_at' => '2026-09-01T10:15:00Z',
             ],
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function challengeData(): array
+    {
+        return ['two_fa_required' => true, 'challenge_token' => '4c1d', 'methods' => ['totp'], 'phone_hint' => ''];
+    }
+
+    /** Run a sign-in that must stop at the second factor, and return what it raised. */
+    private function pending(callable $signIn): TwoFactorRequiredException
+    {
+        try {
+            $signIn();
+        } catch (TwoFactorRequiredException $e) {
+            return $e;
+        }
+
+        $this->fail('expected TwoFactorRequiredException');
     }
 
     public function testLoginThreeShapes(): void
@@ -193,6 +214,85 @@ final class AuthClientTest extends TestCase
         $r = $client->lastRequest();
         $this->assertSame('https://auth.ghayma.tech/v1/my-app/oauth/id-token', (string) $r->getUri());
         $this->assertSame('{"provider":"google","id_token":"eyJid...","nonce":"7f3a1c9e0b52"}', (string) $r->getBody());
+    }
+
+    public function testOAuthSignInWithoutSecondFactorReturnsSession(): void
+    {
+        $client = (new RecordingClient())->queueJson(200, $this->sessionData());
+        $session = $this->auth($client)->exchangeCode('6d3b17f0c94a', 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk');
+        $this->assertSame('eyJ...', $session->accessToken);
+        $this->assertSame('9f8e7d6c5b4a', $session->refreshToken);
+        $this->assertSame('user@example.com', $session->user->email);
+
+        $client = (new RecordingClient())->queueJson(200, $this->sessionData());
+        $session = $this->auth($client)->signInWithIdToken('eyJid...', '7f3a1c9e0b52');
+        $this->assertSame('eyJ...', $session->accessToken);
+        $this->assertSame('9f8e7d6c5b4a', $session->refreshToken);
+        $this->assertSame('user@example.com', $session->user->email);
+    }
+
+    public function testExchangeCodeRaisesPendingChallenge(): void
+    {
+        $auth = $this->auth((new RecordingClient())->queueJson(200, $this->challengeData()));
+
+        $e = $this->pending(fn () => $auth->exchangeCode('6d3b17f0c94a', 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'));
+
+        $this->assertInstanceOf(GhaymaException::class, $e);
+        $this->assertSame(200, $e->status);
+        $this->assertSame('two_fa_required', $e->errorCode);
+        $this->assertSame('two-factor code required', $e->getMessage());
+        $this->assertInstanceOf(TwoFaRequired::class, $e->result);
+        $this->assertSame('4c1d', $e->result->challengeToken);
+        $this->assertSame(['totp'], $e->result->methods);
+    }
+
+    public function testSignInWithIdTokenRaisesPendingChallenge(): void
+    {
+        $auth = $this->auth((new RecordingClient())->queueJson(200, $this->challengeData()));
+
+        $e = $this->pending(fn () => $auth->signInWithIdToken('eyJid...', '7f3a1c9e0b52'));
+
+        $this->assertInstanceOf(GhaymaException::class, $e);
+        $this->assertSame(200, $e->status);
+        $this->assertSame('two_fa_required', $e->errorCode);
+        $this->assertSame('two-factor code required', $e->getMessage());
+        $this->assertInstanceOf(TwoFaRequired::class, $e->result);
+        $this->assertSame('4c1d', $e->result->challengeToken);
+        $this->assertSame(['totp'], $e->result->methods);
+    }
+
+    public function testOAuthSignInRaisesPendingEnrolment(): void
+    {
+        $enrolment = ['two_fa_enrollment_required' => true, 'enroll_token' => '7b2e', 'methods' => ['totp']];
+
+        $auth = $this->auth((new RecordingClient())->queueJson(200, $enrolment)->queueJson(200, $enrolment));
+        $raised = [
+            $this->pending(fn () => $auth->exchangeCode('6d3b17f0c94a', 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')),
+            $this->pending(fn () => $auth->signInWithIdToken('eyJid...')),
+        ];
+
+        foreach ($raised as $e) {
+            $this->assertSame(200, $e->status);
+            $this->assertSame('two_fa_enrollment_required', $e->errorCode);
+            $this->assertSame('two-factor enrolment required', $e->getMessage());
+            $this->assertInstanceOf(TwoFaEnrollmentRequired::class, $e->result);
+            $this->assertSame('7b2e', $e->result->enrollToken);
+            $this->assertSame(['totp'], $e->result->methods);
+        }
+    }
+
+    public function testSignInWithIdTokenEmailNotVerifiedKeepsItsCode(): void
+    {
+        $client = (new RecordingClient())
+            ->queueJson(403, ['error' => "Your Google account's email address is not verified", 'code' => 'email_not_verified']);
+
+        try {
+            $this->auth($client)->signInWithIdToken('eyJid...');
+            $this->fail('expected ForbiddenException');
+        } catch (ForbiddenException $e) {
+            $this->assertSame(403, $e->status);
+            $this->assertSame('email_not_verified', $e->errorCode);
+        }
     }
 
     public function testTotpEnrollConfirmAndRecovery(): void

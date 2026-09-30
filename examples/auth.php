@@ -51,3 +51,13 @@ try {
     fwrite(STDERR, sprintf("auth error [%d %s]: %s\n", $e->status, $e->errorCode, $e->getMessage()));
     exit(1);
 }
+
+// OAuth sign-in returns a Session, so when the app's 2FA policy applies,
+// exchangeCode() and signInWithIdToken() throw instead (no session exists yet):
+//
+//     try {
+//         $session = $auth->exchangeCode($code, $codeVerifier, $clientIp);
+//     } catch (\Ghayma\Sdk\Exception\TwoFactorRequiredException $e) {
+//         // $e->result is a TwoFaRequired or a TwoFaEnrollmentRequired:
+//         // finish exactly as in the login branches above.
+//     }

@@ -10,7 +10,10 @@ use Ghayma\Sdk\Exception\InvalidGrantException;
 use Ghayma\Sdk\Exception\InvalidTokenException;
 use Ghayma\Sdk\Exception\NotFoundException;
 use Ghayma\Sdk\Exception\RateLimitedException;
+use Ghayma\Sdk\Exception\TwoFactorRequiredException;
 use Ghayma\Sdk\Exception\UnauthorizedException;
+use Ghayma\Sdk\Model\LoginSuccess;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class ExceptionTest extends TestCase
@@ -76,5 +79,18 @@ final class ExceptionTest extends TestCase
         $this->expectException(GhaymaException::class);
 
         throw GhaymaException::fromResponse(404, ['error' => 'not found']);
+    }
+
+    public function testTwoFactorRequiredRefusesASession(): void
+    {
+        $success = LoginSuccess::fromArray([
+            'access_token' => 'a', 'refresh_token' => 'r', 'expires_in' => 900, 'token_type' => 'Bearer',
+            'user' => ['id' => 'u', 'email' => 'user@example.com', 'provider' => 'google', 'created_at' => '2026-09-01T10:15:00Z'],
+        ]);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage(LoginSuccess::class);
+
+        new TwoFactorRequiredException($success);
     }
 }

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Ghayma\Sdk;
 
+use Ghayma\Sdk\Exception\TwoFactorRequiredException;
 use Ghayma\Sdk\Http\ClientResolver;
 use Ghayma\Sdk\Http\Transport;
 use Ghayma\Sdk\Model\DecodesData;
 use Ghayma\Sdk\Model\EmailChangeRequest;
 use Ghayma\Sdk\Model\LoginResult;
 use Ghayma\Sdk\Model\LoginResultFactory;
+use Ghayma\Sdk\Model\LoginSuccess;
 use Ghayma\Sdk\Model\RegisterResult;
 use Ghayma\Sdk\Model\RegisterResultFactory;
 use Ghayma\Sdk\Model\ResetTokenInfo;
@@ -275,10 +277,14 @@ final class GhaymaAuth
         return $this->oauthUrl('github', $redirectUri, $codeChallenge);
     }
 
-    /** Trade a PKCE one-time code for a session. */
+    /**
+     * Trade a PKCE one-time code for a session.
+     *
+     * @throws TwoFactorRequiredException when the app's 2FA policy applies; no session was created
+     */
     public function exchangeCode(string $code, string $codeVerifier, ?string $clientIp = null): Session
     {
-        return Session::fromArray($this->transport->request(
+        return self::sessionOrPending($this->transport->request(
             'POST',
             '/oauth/exchange',
             ['code' => $code, 'code_verifier' => $codeVerifier],
@@ -286,7 +292,11 @@ final class GhaymaAuth
         ));
     }
 
-    /** Sign in with a Google ID token obtained natively (iOS/Android), no browser involved. */
+    /**
+     * Sign in with a Google ID token obtained natively (iOS/Android), no browser involved.
+     *
+     * @throws TwoFactorRequiredException when the app's 2FA policy applies; no session was created
+     */
     public function signInWithIdToken(string $idToken, ?string $nonce = null, ?string $clientIp = null): Session
     {
         $body = ['provider' => 'google', 'id_token' => $idToken];
@@ -294,7 +304,7 @@ final class GhaymaAuth
             $body['nonce'] = $nonce;
         }
 
-        return Session::fromArray($this->transport->request(
+        return self::sessionOrPending($this->transport->request(
             'POST',
             '/oauth/id-token',
             $body,
@@ -303,6 +313,22 @@ final class GhaymaAuth
     }
 
     // ── Internal ────────────────────────────────────────────────────
+
+    /**
+     * An OAuth sign-in answers like /login; a pending second-factor step is
+     * raised rather than returned, so the Session return type holds.
+     *
+     * @param array<string, mixed> $body
+     */
+    private static function sessionOrPending(array $body): Session
+    {
+        $result = LoginResultFactory::fromArray($body);
+        if (!$result instanceof LoginSuccess) {
+            throw new TwoFactorRequiredException($result);
+        }
+
+        return $result->session;
+    }
 
     private function oauthUrl(string $provider, string $redirectUri, ?string $codeChallenge): string
     {
