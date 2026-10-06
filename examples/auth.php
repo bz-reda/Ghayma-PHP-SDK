@@ -22,7 +22,8 @@ $auth = new GhaymaAuth(
 
 // Forward the real end-user IP so rate limits apply to them, not to your server.
 // Only honoured together with a server key.
-$clientIp = $_SERVER['REMOTE_ADDR'] ?? null;
+// On Ghayma, REMOTE_ADDR is the platform's edge; the visitor is in X-Real-IP.
+$clientIp = $_SERVER['HTTP_X_REAL_IP'] ?? null;
 
 try {
     $result = $auth->login('user@example.com', 's3cret-passphrase', $clientIp);
@@ -34,11 +35,11 @@ try {
         printf("signed in as %s\n", $user->email);
 
         // When the access token nears expiry, rotate the refresh token:
-        $pair = $auth->refresh($session->refreshToken);
+        $pair = $auth->refresh($session->refreshToken, $clientIp);
         printf("refreshed; new access token expires in %ds\n", $pair->expiresIn);
     } elseif ($result instanceof TwoFaRequired) {
         // Prompt for the user's TOTP or recovery code, then finish the login.
-        $session = $auth->verify2fa($result->challengeToken, '123456');
+        $session = $auth->verify2fa($result->challengeToken, '123456', $clientIp);
         printf("signed in with 2FA as %s\n", $session->user->email);
     } elseif ($result instanceof TwoFaEnrollmentRequired) {
         // Enforced policy: enrol, render the QR, confirm — this completes the login.

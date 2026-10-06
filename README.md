@@ -56,13 +56,14 @@ use Ghayma\Sdk\Model\TwoFaRequired;
 use Ghayma\Sdk\Model\TwoFaEnrollmentRequired;
 
 $auth = new GhaymaAuth(appSlug: 'my-app', serverKey: getenv('GHAYMA_AUTH_SERVER_KEY') ?: null);
+$clientIp = $_SERVER['HTTP_X_REAL_IP'] ?? null;
 
 $result = $auth->login('user@example.com', $password, $clientIp);
 
 if ($result instanceof LoginSuccess) {
     $session = $result->session;         // store $session->accessToken / ->refreshToken yourself
 } elseif ($result instanceof TwoFaRequired) {
-    $session = $auth->verify2fa($result->challengeToken, $code);
+    $session = $auth->verify2fa($result->challengeToken, $code, $clientIp);
 } elseif ($result instanceof TwoFaEnrollmentRequired) {
     $enrollment  = $auth->enrollTotp($result->enrollToken);   // render $enrollment->otpauthUri as a QR
     $confirmation = $auth->confirmTotp($code, $result->enrollToken);
@@ -70,7 +71,7 @@ if ($result instanceof LoginSuccess) {
 
 // Later, on a subsequent request, with the tokens you stored:
 $user = $auth->getUser($accessToken);
-$pair = $auth->refresh($refreshToken);
+$pair = $auth->refresh($refreshToken, $clientIp);
 ```
 
 `login()` returns a `LoginResult` (`LoginSuccess` | `TwoFaRequired` | `TwoFaEnrollmentRequired`); `register()` returns a `RegisterResult` (`RegisterSuccess` | `VerificationRequired`). Match with `instanceof`. See [`examples/auth.php`](examples/auth.php).
@@ -81,10 +82,12 @@ When you construct `GhaymaAuth` with a server key, pass the real end-user IP so 
 
 ```php
 $auth = new GhaymaAuth(appSlug: 'my-app', serverKey: 'ghs_…');
-$auth->login($email, $password, $request->ip());   // sends X-Ghayma-Server-Key + X-Ghayma-Client-IP
+$auth->login($email, $password, $_SERVER['HTTP_X_REAL_IP'] ?? null);   // sends X-Ghayma-Server-Key + X-Ghayma-Client-IP
 ```
 
-`clientIp` is accepted on the rate-limited entry points: `register`, `login`, `forgotPassword`, `exchangeCode`, `signInWithIdToken`. Never expose the server key to a browser — build `GhaymaAuth` in server code only.
+On Ghayma, the visitor's IP is in `X-Real-IP`, which the platform's edge overwrites; if your server is also reachable another way (another host, your own proxy), make sure that path overwrites it too, or don't forward it.
+
+`clientIp` is accepted on the rate-limited entry points: `register`, `login`, `verify2fa`, `refresh`, `forgotPassword`, `resetPassword`, `verifyResetToken`, `resendVerification`, `exchangeCode`, `signInWithIdToken`. Never expose the server key to a browser — build `GhaymaAuth` in server code only.
 
 ## OAuth
 
@@ -120,7 +123,7 @@ try {
     $session = $auth->exchangeCode($code, $codeVerifier, $clientIp);
 } catch (TwoFactorRequiredException $e) {
     if ($e->result instanceof TwoFaRequired) {
-        $session = $auth->verify2fa($e->result->challengeToken, $totpCode);
+        $session = $auth->verify2fa($e->result->challengeToken, $totpCode, $clientIp);
     } elseif ($e->result instanceof TwoFaEnrollmentRequired) {
         $enrollment   = $auth->enrollTotp($e->result->enrollToken);            // render $enrollment->otpauthUri as a QR
         $confirmation = $auth->confirmTotp($totpCode, $e->result->enrollToken); // ->session, ->recoveryCodes
@@ -186,7 +189,7 @@ public function register(): void
 }
 ```
 
-Then type-hint `Ghayma` or `GhaymaAuth` anywhere the container resolves. Laravel's Guzzle satisfies the PSR-18/17 discovery. Forward the caller's IP with `$request->ip()`.
+Then type-hint `Ghayma` or `GhaymaAuth` anywhere the container resolves. Laravel's Guzzle satisfies the PSR-18/17 discovery. Forward the visitor's IP with `$request->header('X-Real-IP')`.
 
 ## Contracts and conformance
 

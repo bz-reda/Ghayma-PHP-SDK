@@ -83,18 +83,18 @@ final class GhaymaAuth
     }
 
     /** Finish a login that asked for a second factor, with a TOTP or recovery code. */
-    public function verify2fa(string $challengeToken, string $code): Session
+    public function verify2fa(string $challengeToken, string $code, ?string $clientIp = null): Session
     {
         return Session::fromArray(
-            $this->transport->request('POST', '/2fa/verify', ['challenge_token' => $challengeToken, 'code' => $code]),
+            $this->transport->request('POST', '/2fa/verify', ['challenge_token' => $challengeToken, 'code' => $code], $this->forwardHeaders($clientIp)),
         );
     }
 
     /** Rotate a refresh token for a new token pair. */
-    public function refresh(string $refreshToken): TokenPair
+    public function refresh(string $refreshToken, ?string $clientIp = null): TokenPair
     {
         return TokenPair::fromArray(
-            $this->transport->request('POST', '/refresh', ['refresh_token' => $refreshToken]),
+            $this->transport->request('POST', '/refresh', ['refresh_token' => $refreshToken], $this->forwardHeaders($clientIp)),
         );
     }
 
@@ -172,23 +172,23 @@ final class GhaymaAuth
     }
 
     /** Set a new password with an emailed reset token (revokes every session). */
-    public function resetPassword(string $token, string $password): void
+    public function resetPassword(string $token, string $password, ?string $clientIp = null): void
     {
-        $this->transport->request('POST', '/reset-password', ['token' => $token, 'password' => $password]);
+        $this->transport->request('POST', '/reset-password', ['token' => $token, 'password' => $password], $this->forwardHeaders($clientIp));
     }
 
     /** Pre-check a reset token without consuming it; returns the account email for display. */
-    public function verifyResetToken(string $token): ResetTokenInfo
+    public function verifyResetToken(string $token, ?string $clientIp = null): ResetTokenInfo
     {
         return ResetTokenInfo::fromArray(
-            $this->transport->request('POST', '/verify-reset-token', ['token' => $token]),
+            $this->transport->request('POST', '/verify-reset-token', ['token' => $token], $this->forwardHeaders($clientIp)),
         );
     }
 
     /** Send the verification email again (no-op when already verified). */
-    public function resendVerification(string $email): void
+    public function resendVerification(string $email, ?string $clientIp = null): void
     {
-        $this->transport->request('POST', '/resend-verification', ['email' => $email]);
+        $this->transport->request('POST', '/resend-verification', ['email' => $email], $this->forwardHeaders($clientIp));
     }
 
     // ── Account (bearer-authenticated) ──────────────────────────────
