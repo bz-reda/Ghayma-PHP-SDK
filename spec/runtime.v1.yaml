@@ -444,14 +444,17 @@ paths:
     post:
       tags: [Auth apps]
       operationId: resetAuthAppUser2FA
-      summary: Clear an end user's 2FA enrolment.
+      summary: Clear an end user's 2FA enrolment and end their sessions.
       description: |
-        Support hammer for a locked-out user (lost authenticator). The user
-        signs back in with their password and re-enrols. Requires the admin or
-        owner role on the project; audited.
+        Support hammer for a locked-out user (lost authenticator) or a
+        compromised one. Every session of the user ends with the reset, in the
+        same transaction: access and refresh tokens issued before are refused,
+        and pending second-factor challenges and email changes stop working.
+        The user signs back in with their password and re-enrols. Requires the
+        admin or owner role on the project; audited.
       responses:
         '200':
-          description: The user's 2FA enrolment was cleared.
+          description: The user's 2FA enrolment was cleared and their sessions ended.
           content:
             application/json:
               schema:
@@ -658,10 +661,22 @@ paths:
     get:
       tags: [Databases]
       operationId: getDatabaseCredentials
-      summary: Get a managed database's connection credentials.
+      summary: Get your site's own connection credentials for a managed database.
+      description: |
+        A site's key (`GHAYMA_API_KEY`) gets its site's OWN connection
+        credential — the login the site's runtime env carries in
+        `DATABASE_URL` / `MONGODB_URI`, at the connection's `level` — never the
+        database's shared owner credential. `credential` says which one it is:
+        `connection` (the connection's own role), or `shared` while the
+        connection has no credential of its own yet (an engine that cannot mint
+        one, such as a standalone MongoDB).
+
+        A project-wide key has no connection of its own: `403
+        site_key_required`. A site that is not connected to the database:
+        `403 not_connected`.
       responses:
         '200':
-          description: Connection details, including the live password.
+          description: The site's connection details, including the live password.
           content:
             application/json:
               schema:
@@ -672,15 +687,39 @@ paths:
                     type: postgres
                     host: primary-pg.databases.svc.cluster.local
                     port: 5432
-                    username: appuser
+                    username: c_3f1a2b3c
                     password: example-password
                     database: appdb
-                    internal_url: 'postgresql://appuser:example-password@primary-pg.databases.svc.cluster.local:5432/appdb'
+                    internal_url: 'postgresql://c_3f1a2b3c:example-password@primary-pg.databases.svc.cluster.local:5432/appdb'
                     external_access: false
+                    level: connect
+                    credential: connection
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: |
+            The key may not read this database's credentials: it is a
+            project-wide key (`site_key_required`), its site is not connected
+            to the database (`not_connected`), or the key lacks the `databases`
+            capability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                site_key_required:
+                  value:
+                    error: 'a project-wide key has no connection of its own — use the site''s GHAYMA_API_KEY'
+                    code: site_key_required
+                not_connected:
+                  value:
+                    error: this site is not connected to that database
+                    code: not_connected
+                insufficient_scope:
+                  value:
+                    error: insufficient token scope
+                    required: [databases]
+                    current: storage
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -779,6 +818,21 @@ paths:
                 crons:
                   type: string
                   description: The ghayma.json `crons` array, forwarded verbatim as a JSON string.
+                connect_resources:
+                  type: string
+                  description: |
+                    A JSON list of `{"kind", "resource_id"}` (at most 20) to connect to
+                    the deploy's site before the build is queued, each at its kind's
+                    default level. `kind` is `database`, `bucket` or `auth_app`; any
+                    `level` sent is ignored. Nothing here ever fails the deploy: every
+                    service is reported in the answer's `connections`.
+
+                    Only a signed-in user connects. With a project key every listed
+                    service is reported failed; so it is with a token lacking the
+                    `projects` scope, and for a user who may not write the deploy's
+                    site. A value that is not such a list, or lists more than 20, is
+                    refused whole: one failed entry with an empty `kind` and
+                    `resource_id`, and nothing connected.
             example:
               project_id: a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061
               source: (binary .zip or .tar.gz archive)
@@ -791,7 +845,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [deployment_id, status, message]
+                required: [deployment_id, status, message, connections]
                 properties:
                   deployment_id:
                     type: string
@@ -804,6 +858,8 @@ paths:
                     type: string
                   message:
                     type: string
+                  connections:
+                    $ref: '#/components/schemas/DeployConnections'
               examples:
                 success:
                   value:
@@ -811,6 +867,27 @@ paths:
                     site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
                     status: queued
                     message: Source uploaded, build queued
+                    connections:
+                      connected: []
+                      pending: []
+                      failed: []
+                with_connections:
+                  value:
+                    deployment_id: e9d8c7b6-a5f4-4321-8765-1a2b3c4d5e6f
+                    site_id: f0e1d2c3-b4a5-4967-8879-0a1b2c3d4e5f
+                    status: queued
+                    message: Source uploaded, build queued
+                    connections:
+                      connected:
+                        - kind: bucket
+                          resource_id: 7c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f
+                      pending:
+                        - kind: database
+                          resource_id: 2b3c4d5e-6f70-4812-9a3b-4c5d6e7f8091
+                      failed:
+                        - kind: auth_app
+                          resource_id: 5e6f7081-92a3-4b4c-8d5e-6f708192a3b4
+                          error: still connecting when the deploy went on; the site's Connections tab shows the outcome
         '400':
           description: Missing project_id or source, or an unsupported archive type.
           content:
@@ -846,7 +923,34 @@ paths:
               examples:
                 payload_too_large:
                   value:
-                    error: upload too large (max 512 MB) or malformed multipart form
+                    error: upload too large (max 500 MB) or malformed multipart form
+        '500':
+          description: |
+            The source could not be saved or unpacked, or the build could not be
+            queued; the deployment is marked failed. A build that could not be
+            queued fails after the connect step, so its answer also carries
+            `connections`: what was connected stays connected, and what waits for
+            its engine still waits.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+                  connections:
+                    $ref: '#/components/schemas/DeployConnections'
+              examples:
+                queue_failed:
+                  value:
+                    error: 'failed to queue build: redis: connection refused'
+                    connections:
+                      connected:
+                        - kind: database
+                          resource_id: 2b3c4d5e-6f70-4812-9a3b-4c5d6e7f8091
+                      pending: []
+                      failed: []
 
   /api/v1/deployments/project/{projectId}:
     parameters:
@@ -1320,11 +1424,21 @@ paths:
     get:
       tags: [Storage]
       operationId: getBucketCredentials
-      summary: Get a bucket's S3 credentials.
-      description: Grants full S3 read+write to the bucket, so requires write access.
+      summary: Get your site's own S3 credentials for a bucket.
+      description: |
+        A site's key (`GHAYMA_API_KEY`) gets its site's OWN connection key —
+        the one the site's runtime env carries in `STORAGE_ACCESS_KEY` /
+        `STORAGE_SECRET_KEY`, at the connection's `level` (a `read` key cannot
+        write) — never the bucket's owner key. `credential` says which one it
+        is: `connection` (the connection's own key), or `shared` while the
+        connection has no key of its own yet.
+
+        A project-wide key has no connection of its own: `403
+        site_key_required`. A site that is not connected to the bucket: `403
+        not_connected`.
       responses:
         '200':
-          description: S3 credentials for the bucket.
+          description: The site's S3 credentials for the bucket.
           content:
             application/json:
               schema:
@@ -1342,12 +1456,47 @@ paths:
                       bucket: assets-b1c2d3e4
                       endpoint: 'https://s3.ghayma.app'
                       region: garage
+                      level: read-write
+                      credential: connection
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          $ref: '#/components/responses/Forbidden'
+          description: |
+            The key may not read this bucket's credentials: it is a
+            project-wide key (`site_key_required`), its site is not connected
+            to the bucket (`not_connected`), or the key lacks the `storage`
+            capability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                site_key_required:
+                  value:
+                    error: 'a project-wide key has no connection of its own — use the site''s GHAYMA_API_KEY'
+                    code: site_key_required
+                not_connected:
+                  value:
+                    error: this site is not connected to that bucket
+                    code: not_connected
+                insufficient_scope:
+                  value:
+                    error: insufficient token scope
+                    required: [storage]
+                    current: databases
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: The site is connected, but the bucket is still being provisioned and has no key yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                credentials_not_ready:
+                  value:
+                    error: that bucket has no credentials yet — it is still being provisioned
+                    code: credentials_not_ready
 
   /api/v1/storage/{id}/presign/upload:
     parameters:
@@ -1653,6 +1802,16 @@ paths:
                 payload_too_large:
                   value:
                     error: upload too large (max 100 MB) or malformed multipart form
+        '415':
+          description: The request body is not multipart/form-data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                unsupported_media_type:
+                  value:
+                    error: upload must be multipart/form-data
 
   /api/v1/storage/{id}/objects/download:
     parameters:
@@ -2361,9 +2520,23 @@ components:
         updated_at:
           type: string
           format: date-time
+        pending_connections:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: |
+            The sites chosen for this database that wait for its engine to accept
+            logins; each is connected as soon as it does (checked at least every
+            2 minutes). Omitted when none waits.
+        connect_error:
+          type: string
+          description: |
+            Says how many chosen sites still wait, once they have waited 15
+            minutes, and what the user can do. Omitted otherwise.
     DatabaseCredentials:
       type: object
-      description: Connection details for a managed database, read from its Kubernetes secret.
+      description: Connection details for a managed database — for a site key, the site's own connection credential.
       required: [type, host, port, username, password, database, internal_url, external_access]
       properties:
         type:
@@ -2393,6 +2566,17 @@ components:
         external_url:
           type: string
           description: Present only when external access is enabled.
+        level:
+          type: string
+          enum: [read-only, connect]
+          description: The site's connection level. Present for a site key.
+        credential:
+          type: string
+          enum: [connection, shared]
+          description: |
+            `connection` — the connection's own role; `shared` — the database's
+            shared credential, while the connection has none of its own yet.
+            Present for a site key.
     DatabaseMetrics:
       type: object
       description: Live metrics for a running database. Only `status` is set when the database is not running.
@@ -2487,7 +2671,7 @@ components:
           format: date-time
     BucketCredentials:
       type: object
-      description: S3 credentials for a bucket — feed straight into any S3 client.
+      description: S3 credentials for a bucket — feed straight into any S3 client. For a site key, the site's own connection key.
       required: [access_key, secret_key, bucket, endpoint, region]
       properties:
         access_key:
@@ -2501,6 +2685,17 @@ components:
           type: string
         region:
           type: string
+        level:
+          type: string
+          enum: [read, read-write]
+          description: The site's connection level. Present for a site key.
+        credential:
+          type: string
+          enum: [connection, shared]
+          description: |
+            `connection` — the connection's own key; `shared` — the bucket's
+            own key, while the connection has none of its own yet. Present for
+            a site key.
     StorageObject:
       type: object
       description: An object or folder listed in a bucket.
@@ -2552,6 +2747,65 @@ components:
           additionalProperties:
             type: string
           description: User metadata; omitted when empty.
+    DeployConnections:
+      type: object
+      description: |
+        What became of a deploy's `connect_resources`, keyed by service: each
+        chosen service appears once, in one of the three lists, which are always
+        arrays.
+      required: [connected, pending, failed]
+      properties:
+        connected:
+          type: array
+          description: Connected to the deploy's site, by this deploy or before it.
+          items:
+            $ref: '#/components/schemas/DeployConnectionRef'
+        pending:
+          type: array
+          description: |
+            Databases whose engine does not accept logins yet. The deploy's site
+            waits for each and is connected as soon as it does (checked at least
+            every 2 minutes); the running site then receives its variables. The
+            build this deploy queued may run without them.
+          items:
+            $ref: '#/components/schemas/DeployConnectionRef'
+        failed:
+          type: array
+          description: |
+            Left unconnected, each with a fixed sentence a user can read — among
+            them `connecting a service needs a signed-in user` (a project key),
+            `connecting a service needs a token with the projects scope`, `you
+            cannot change this site's connections` and `resource does not belong to
+            this project`. `kind` and `resource_id` are what was sent, trimmed,
+            the id lowercased. A choice refused whole is one entry whose `kind`
+            and `resource_id` are empty. A service still connecting when the
+            deploy went on reads `still connecting when the deploy went on; the
+            site's Connections tab shows the outcome` — a database `still
+            connecting when the deploy went on; the database's sites show the
+            outcome`, as it may end waiting for its engine — and may yet connect;
+            one the deploy never reached reads `timed out; connect it from the
+            site's Connections tab`.
+          items:
+            type: object
+            required: [kind, resource_id, error]
+            properties:
+              kind:
+                type: string
+              resource_id:
+                type: string
+              error:
+                type: string
+    DeployConnectionRef:
+      type: object
+      description: One service a deploy chose.
+      required: [kind, resource_id]
+      properties:
+        kind:
+          type: string
+          enum: [database, bucket, auth_app]
+        resource_id:
+          type: string
+          format: uuid
     DeleteError:
       type: object
       description: One key that could not be deleted, with the reason.

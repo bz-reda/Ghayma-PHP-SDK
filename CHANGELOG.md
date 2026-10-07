@@ -2,6 +2,14 @@
 
 All notable changes to `ghayma/sdk` are documented here. This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.3.0 - 2026-10-06
+
+Every call the auth service rate-limits per IP now takes `clientIp`.
+
+- `verify2fa()`, `refresh()`, `resetPassword()`, `verifyResetToken()` and `resendVerification()` accept an optional trailing `?string $clientIp`. With a server key, it is forwarded as `X-Ghayma-Client-IP` alongside `X-Ghayma-Server-Key` (both or neither, as on `login()`), so these limits count the end user rather than your server.
+- Additive: calls without `clientIp` send neither header, as before.
+- README and `examples/auth.php`: forward the visitor's IP from the `X-Real-IP` header (`$_SERVER['HTTP_X_REAL_IP']` in plain PHP, `$request->header('X-Real-IP')` in Laravel). Laravel's `$request->ip()` is Ghayma's edge unless TrustProxies is configured.
+
 ## 0.2.0 - 2026-09-29
 
 OAuth sign-in surfaces the app's second factor (TOTP 2FA) instead of a session.

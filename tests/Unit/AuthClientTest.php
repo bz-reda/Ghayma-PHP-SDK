@@ -177,6 +177,53 @@ final class AuthClientTest extends TestCase
         $this->assertFalse($client->lastRequest()->hasHeader('X-Ghayma-Client-IP'));
     }
 
+    public function testVerify2faForwardsClientIp(): void
+    {
+        $client = (new RecordingClient())->queueJson(200, $this->sessionData());
+        $this->auth($client, 'ghs_key')->verify2fa('ch', '123456', '1.2.3.4');
+        $r = $client->lastRequest();
+        $this->assertSame('ghs_key', $r->getHeaderLine('X-Ghayma-Server-Key'));
+        $this->assertSame('1.2.3.4', $r->getHeaderLine('X-Ghayma-Client-IP'));
+    }
+
+    public function testRefreshForwardsClientIp(): void
+    {
+        $client = (new RecordingClient())->queueJson(200, [
+            'access_token' => 'a', 'refresh_token' => 'b', 'expires_in' => 900, 'token_type' => 'Bearer',
+        ]);
+        $this->auth($client, 'ghs_key')->refresh('rt', '1.2.3.4');
+        $r = $client->lastRequest();
+        $this->assertSame('ghs_key', $r->getHeaderLine('X-Ghayma-Server-Key'));
+        $this->assertSame('1.2.3.4', $r->getHeaderLine('X-Ghayma-Client-IP'));
+    }
+
+    public function testResetPasswordForwardsClientIp(): void
+    {
+        $client = (new RecordingClient())->queueJson(200, ['message' => 'password reset successfully, please log in']);
+        $this->auth($client, 'ghs_key')->resetPassword('tok', 'pw-123456', '1.2.3.4');
+        $r = $client->lastRequest();
+        $this->assertSame('ghs_key', $r->getHeaderLine('X-Ghayma-Server-Key'));
+        $this->assertSame('1.2.3.4', $r->getHeaderLine('X-Ghayma-Client-IP'));
+    }
+
+    public function testVerifyResetTokenForwardsClientIp(): void
+    {
+        $client = (new RecordingClient())->queueJson(200, ['valid' => true, 'email' => 'user@example.com']);
+        $this->auth($client, 'ghs_key')->verifyResetToken('tok', '1.2.3.4');
+        $r = $client->lastRequest();
+        $this->assertSame('ghs_key', $r->getHeaderLine('X-Ghayma-Server-Key'));
+        $this->assertSame('1.2.3.4', $r->getHeaderLine('X-Ghayma-Client-IP'));
+    }
+
+    public function testResendVerificationForwardsClientIp(): void
+    {
+        $client = (new RecordingClient())->queueJson(200, ['message' => 'if an account exists with that email, a verification link has been sent']);
+        $this->auth($client, 'ghs_key')->resendVerification('a@b.c', '1.2.3.4');
+        $r = $client->lastRequest();
+        $this->assertSame('ghs_key', $r->getHeaderLine('X-Ghayma-Server-Key'));
+        $this->assertSame('1.2.3.4', $r->getHeaderLine('X-Ghayma-Client-IP'));
+    }
+
     public function testOAuthUrlBuildersAreByteForByte(): void
     {
         $auth = $this->auth(new RecordingClient());
