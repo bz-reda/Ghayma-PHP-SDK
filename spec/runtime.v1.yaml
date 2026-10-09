@@ -2484,20 +2484,21 @@ components:
           type: string
         type:
           type: string
-          enum: [postgres, mongodb, redis]
-          description: redis is legacy — no new redis databases are provisioned, but pre-existing rows still report it.
+          enum: [postgres, mongodb, valkey]
+          description: Redis is not offered (a create asking for it is refused with use_valkey); Valkey speaks the Redis protocol.
         version:
           type: string
         status:
           type: string
-          enum: [provisioning, running, stopped, error]
+          enum: [provisioning, running, stopped, error, resizing]
+          description: resizing while the disk moves to a new size.
         host:
           type: string
         port:
           type: integer
         db_name:
           type: string
-          description: Omitted when empty.
+          description: Omitted when empty — always for a Valkey.
         tier_slug:
           type: string
           description: Sizing bracket from database_tiers — the persisted sizing decision.
@@ -2529,6 +2530,13 @@ components:
           description: Omitted when zero.
         replica_set:
           type: boolean
+        valkey_mode:
+          type: string
+          enum: [cache, store]
+          description: Present only for a Valkey. cache evicts the least-recently-used keys when memory is full; store never evicts and keeps an append-only file.
+        status_message:
+          type: string
+          description: Why the database is in error, for example a Valkey that never became ready. Omitted when empty.
         created_at:
           type: string
           format: date-time
@@ -2556,7 +2564,7 @@ components:
       properties:
         type:
           type: string
-          enum: [postgres, mongodb, redis]
+          enum: [postgres, mongodb, valkey]
         host:
           type: string
         port:
@@ -2585,7 +2593,7 @@ components:
       properties:
         status:
           type: string
-          enum: [provisioning, running, stopped, error]
+          enum: [provisioning, running, stopped, error, resizing]
         uptime_hours:
           type: number
           description: Omitted when zero.
@@ -2606,7 +2614,8 @@ components:
           description: |
             Engine-specific counters. postgres: table_count, total_rows,
             cache_hit_ratio, index_usage_ratio, dead_tuples. mongodb: data_size,
-            objects, collections, indexes.
+            objects, collections, indexes. valkey: keys, maxmemory_bytes,
+            evicted_keys, keyspace_hits, keyspace_misses, mode.
     Bucket:
       type: object
       description: A storage bucket in the key's project.
