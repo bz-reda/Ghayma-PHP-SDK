@@ -20,10 +20,12 @@ final readonly class Database
         public string $name,
         public DatabaseEngine $type,
         public string $version,
+        /** `provisioning`, `running`, `stopped`, `error` or `resizing` (while the disk moves to a new size). */
         public string $status,
         public string $host,
         public int $port,
         public ?string $dbName,
+        /** @deprecated Not sent since October 2026: the database's own login is never handed out, so it is null. */
         public ?string $username,
         public string $tierSlug,
         public string $cpuRequest,
@@ -38,11 +40,12 @@ final readonly class Database
         public string $backupTierSlug,
         public ?int $maxConnections,
         public bool $replicaSet,
-        public bool $externalAccess,
-        public ?string $externalHost,
-        public ?int $externalPort,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        /** `cache` (evicts least-recently-used keys) or `store` (never evicts); a Valkey only. */
+        public ?string $valkeyMode = null,
+        /** Why the database is in error; null when empty. */
+        public ?string $statusMessage = null,
     ) {
     }
 
@@ -75,11 +78,10 @@ final readonly class Database
             backupTierSlug: self::str($d, 'backup_tier_slug'),
             maxConnections: self::nint($d, 'max_connections'),
             replicaSet: self::bool($d, 'replica_set'),
-            externalAccess: self::bool($d, 'external_access'),
-            externalHost: self::nstr($d, 'external_host'),
-            externalPort: self::nint($d, 'external_port'),
             createdAt: self::date($d, 'created_at'),
             updatedAt: self::date($d, 'updated_at'),
+            valkeyMode: self::nstr($d, 'valkey_mode'),
+            statusMessage: self::nstr($d, 'status_message'),
         );
     }
 }

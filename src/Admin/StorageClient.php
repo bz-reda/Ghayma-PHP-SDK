@@ -49,7 +49,17 @@ final class StorageClient
         return Bucket::fromArray(self::map($res, 'bucket'));
     }
 
-    /** Get a bucket's S3 credentials (full read+write; requires write access). */
+    /**
+     * Get the site's own connection credential (site key) for a bucket, at the
+     * connection's level (a `read` key cannot write) — never the bucket's owner key.
+     *
+     * While the connection waits for its own key, a {@see \Ghayma\Sdk\Exception\GhaymaException}
+     * with `status` 409 and `errorCode` `no_own_credential` is thrown (`credentials_not_ready`
+     * while the bucket is still being provisioned); retry in a few minutes.
+     * An account token gets a 410 `GhaymaException` (`shared_credentials_retired`); a project-wide
+     * key, or a site not connected to it, a 403 {@see \Ghayma\Sdk\Exception\ForbiddenException}
+     * (`site_key_required`, `not_connected`).
+     */
     public function credentials(string $id): BucketCredentials
     {
         $res = $this->transport->request('GET', '/api/v1/storage/' . $id . '/credentials');

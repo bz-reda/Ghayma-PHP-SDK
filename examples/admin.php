@@ -28,10 +28,17 @@ try {
         break;
     }
 
-    // Databases — connection details for your ORM or driver.
+    // Databases — your site's own connection credential (the site's GHAYMA_API_KEY), for your ORM or driver.
     foreach ($ghayma->databases->list() as $db) {
-        $creds = $ghayma->databases->credentials($db->id);
-        printf("database %s -> %s\n", $db->name, $creds->internalUrl);
+        try {
+            $creds = $ghayma->databases->credentials($db->id);
+        } catch (GhaymaException $e) {
+            // site_key_required (403): use the site's GHAYMA_API_KEY, not a project-wide key;
+            // not_connected (403); no_own_credential (409): retry in a few minutes.
+            printf("database %s: %s\n", $db->name, $e->errorCode);
+            continue;
+        }
+        printf("database %s -> %s:%d/%s as %s (%s)\n", $db->name, $creds->host, $creds->port, $creds->database, $creds->username, $creds->level ?? 'n/a');
     }
 
     // Auth apps — page through end users and set the roles embedded in their JWT.

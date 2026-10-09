@@ -59,6 +59,7 @@ paths:
                         app_id: sample-app
                         status: active
                         allowed_origins: ['https://sample.example.com']
+                        site_origins: ['https://sample-app.ghayma.app']
                         email_verification_required: true
                         google_oauth_enabled: false
                         google_native_client_ids: []
@@ -107,6 +108,7 @@ paths:
                       app_id: sample-app
                       status: active
                       allowed_origins: ['https://sample.example.com']
+                      site_origins: ['https://sample-app.ghayma.app']
                       email_verification_required: true
                       google_oauth_enabled: false
                       google_native_client_ids: []
@@ -577,7 +579,6 @@ paths:
                         host: primary-pg.databases.svc.cluster.local
                         port: 5432
                         db_name: appdb
-                        username: appuser
                         tier_slug: db-s
                         cpu_request: 100m
                         cpu_limit: '1'
@@ -591,7 +592,6 @@ paths:
                         backup_tier_slug: weekly
                         max_connections: 100
                         replica_set: false
-                        external_access: false
                         created_at: '2026-09-01T10:15:00Z'
                         updated_at: '2026-09-10T12:00:00Z'
         '401':
@@ -631,7 +631,6 @@ paths:
                       host: primary-pg.databases.svc.cluster.local
                       port: 5432
                       db_name: appdb
-                      username: appuser
                       tier_slug: db-s
                       cpu_request: 100m
                       cpu_limit: '1'
@@ -645,7 +644,6 @@ paths:
                       backup_tier_slug: weekly
                       max_connections: 100
                       replica_set: false
-                      external_access: false
                       created_at: '2026-09-01T10:15:00Z'
                       updated_at: '2026-09-10T12:00:00Z'
         '401':
@@ -666,14 +664,14 @@ paths:
         A site's key (`GHAYMA_API_KEY`) gets its site's OWN connection
         credential — the login the site's runtime env carries in
         `DATABASE_URL` / `MONGODB_URI`, at the connection's `level` — never the
-        database's shared owner credential. `credential` says which one it is:
-        `connection` (the connection's own role), or `shared` while the
-        connection has no credential of its own yet (an engine that cannot mint
-        one, such as a standalone MongoDB).
+        database's shared owner credential. `credential` is always
+        `connection`.
 
         A project-wide key has no connection of its own: `403
         site_key_required`. A site that is not connected to the database:
-        `403 not_connected`.
+        `403 not_connected`. A connection that has no credential of its own
+        yet answers `409 no_own_credential`; the platform gives it one as soon
+        as the service can (it retries every ten minutes).
       responses:
         '200':
           description: The site's connection details, including the live password.
@@ -691,7 +689,6 @@ paths:
                     password: example-password
                     database: appdb
                     internal_url: 'postgresql://c_3f1a2b3c:example-password@primary-pg.databases.svc.cluster.local:5432/appdb'
-                    external_access: false
                     level: connect
                     credential: connection
         '401':
@@ -720,6 +717,19 @@ paths:
                     error: insufficient token scope
                     required: [databases]
                     current: storage
+        '409':
+          description: |
+            The site's connection has no credential of its own yet (`no_own_credential`).
+            The platform gives it one as soon as the service can (it retries every ten minutes); retry later.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                no_own_credential:
+                  value:
+                    error: this site's connection to that database has no credential of its own yet — the platform gives it one as soon as the service can (it retries every ten minutes); retry later, or reconnect the site
+                    code: no_own_credential
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -1429,13 +1439,14 @@ paths:
         A site's key (`GHAYMA_API_KEY`) gets its site's OWN connection key —
         the one the site's runtime env carries in `STORAGE_ACCESS_KEY` /
         `STORAGE_SECRET_KEY`, at the connection's `level` (a `read` key cannot
-        write) — never the bucket's owner key. `credential` says which one it
-        is: `connection` (the connection's own key), or `shared` while the
-        connection has no key of its own yet.
+        write) — never the bucket's owner key. `credential` is always
+        `connection`.
 
         A project-wide key has no connection of its own: `403
         site_key_required`. A site that is not connected to the bucket: `403
-        not_connected`.
+        not_connected`. A connection that has no credential of its own yet
+        answers `409 no_own_credential`; the platform gives it one as soon as
+        the service can (it retries every ten minutes).
       responses:
         '200':
           description: The site's S3 credentials for the bucket.
@@ -1487,7 +1498,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: The site is connected, but the bucket is still being provisioned and has no key yet.
+          description: |
+            The site is connected, but the bucket is still being provisioned and has no key yet
+            (`credentials_not_ready`), or the site's connection has no key of its own yet
+            (`no_own_credential`). The platform gives it one as soon as the service can (it
+            retries every ten minutes); retry later.
           content:
             application/json:
               schema:
@@ -1497,6 +1512,10 @@ paths:
                   value:
                     error: that bucket has no credentials yet — it is still being provisioned
                     code: credentials_not_ready
+                no_own_credential:
+                  value:
+                    error: this site's connection to that bucket has no credential of its own yet — the platform gives it one as soon as the service can (it retries every ten minutes); retry later, or reconnect the site
+                    code: no_own_credential
 
   /api/v1/storage/{id}/presign/upload:
     parameters:
@@ -2188,6 +2207,7 @@ components:
         - app_id
         - status
         - allowed_origins
+        - site_origins
         - email_verification_required
         - google_oauth_enabled
         - google_native_client_ids
@@ -2227,6 +2247,13 @@ components:
           example: active
         allowed_origins:
           type: array
+          description: Explicit extra origins (CORS, OAuth redirect, reset_url), each scheme://host[:port] with no path, stored lowercase. The project's own sites and localhost are always allowed and are not listed here; "*" is refused on write, and a "*" left from before is neither shown nor honored.
+          items:
+            type: string
+        site_origins:
+          type: array
+          readOnly: true
+          description: The origins of the project's own sites (https://<domain> for every domain of the project whose DNS check has passed), sorted. Always allowed; derived, never stored.
           items:
             type: string
         email_verification_required:
@@ -2437,7 +2464,6 @@ components:
         - disk_gb
         - backup_tier_slug
         - replica_set
-        - external_access
         - created_at
         - updated_at
       properties:
@@ -2458,23 +2484,21 @@ components:
           type: string
         type:
           type: string
-          enum: [postgres, mongodb, redis]
-          description: redis is legacy — no new redis databases are provisioned, but pre-existing rows still report it.
+          enum: [postgres, mongodb, valkey]
+          description: Redis is not offered (a create asking for it is refused with use_valkey); Valkey speaks the Redis protocol.
         version:
           type: string
         status:
           type: string
-          enum: [provisioning, running, stopped, error]
+          enum: [provisioning, running, stopped, error, resizing]
+          description: resizing while the disk moves to a new size.
         host:
           type: string
         port:
           type: integer
         db_name:
           type: string
-          description: Omitted when empty.
-        username:
-          type: string
-          description: Omitted when empty.
+          description: Omitted when empty — always for a Valkey.
         tier_slug:
           type: string
           description: Sizing bracket from database_tiers — the persisted sizing decision.
@@ -2506,14 +2530,13 @@ components:
           description: Omitted when zero.
         replica_set:
           type: boolean
-        external_access:
-          type: boolean
-        external_host:
+        valkey_mode:
           type: string
-          description: Present only when external access is enabled.
-        external_port:
-          type: integer
-          description: Present only when external access is enabled.
+          enum: [cache, store]
+          description: Present only for a Valkey. cache evicts the least-recently-used keys when memory is full; store never evicts and keeps an append-only file.
+        status_message:
+          type: string
+          description: Why the database is in error, for example a Valkey that never became ready. Omitted when empty.
         created_at:
           type: string
           format: date-time
@@ -2537,11 +2560,11 @@ components:
     DatabaseCredentials:
       type: object
       description: Connection details for a managed database — for a site key, the site's own connection credential.
-      required: [type, host, port, username, password, database, internal_url, external_access]
+      required: [type, host, port, username, password, database, internal_url]
       properties:
         type:
           type: string
-          enum: [postgres, mongodb, redis]
+          enum: [postgres, mongodb, valkey]
         host:
           type: string
         port:
@@ -2555,28 +2578,14 @@ components:
         internal_url:
           type: string
           description: In-cluster connection string — always present.
-        external_access:
-          type: boolean
-        external_host:
-          type: string
-          description: Present only when external access is enabled.
-        external_port:
-          type: integer
-          description: Present only when external access is enabled.
-        external_url:
-          type: string
-          description: Present only when external access is enabled.
         level:
           type: string
           enum: [read-only, connect]
           description: The site's connection level. Present for a site key.
         credential:
           type: string
-          enum: [connection, shared]
-          description: |
-            `connection` — the connection's own role; `shared` — the database's
-            shared credential, while the connection has none of its own yet.
-            Present for a site key.
+          enum: [connection]
+          description: "The connection's own credential — always `connection` (the service's own credential is never handed out). Present for a site key."
     DatabaseMetrics:
       type: object
       description: Live metrics for a running database. Only `status` is set when the database is not running.
@@ -2584,7 +2593,7 @@ components:
       properties:
         status:
           type: string
-          enum: [provisioning, running, stopped, error]
+          enum: [provisioning, running, stopped, error, resizing]
         uptime_hours:
           type: number
           description: Omitted when zero.
@@ -2605,7 +2614,8 @@ components:
           description: |
             Engine-specific counters. postgres: table_count, total_rows,
             cache_hit_ratio, index_usage_ratio, dead_tuples. mongodb: data_size,
-            objects, collections, indexes.
+            objects, collections, indexes. valkey: keys, maxmemory_bytes,
+            evicted_keys, keyspace_hits, keyspace_misses, mode.
     Bucket:
       type: object
       description: A storage bucket in the key's project.
@@ -2641,6 +2651,9 @@ components:
         garage_bucket:
           type: string
           description: Underlying S3 bucket name — pass this as the bucket to an S3 client.
+        endpoint:
+          type: string
+          description: The S3 endpoint URL the bucket is reached on. No key travels with it — an app's key is in its STORAGE_* variables.
         storage_used_bytes:
           type: integer
           format: int64
@@ -2691,11 +2704,8 @@ components:
           description: The site's connection level. Present for a site key.
         credential:
           type: string
-          enum: [connection, shared]
-          description: |
-            `connection` — the connection's own key; `shared` — the bucket's
-            own key, while the connection has none of its own yet. Present for
-            a site key.
+          enum: [connection]
+          description: "The connection's own credential — always `connection` (the service's own credential is never handed out). Present for a site key."
     StorageObject:
       type: object
       description: An object or folder listed in a bucket.

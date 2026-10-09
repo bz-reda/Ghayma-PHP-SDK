@@ -1368,13 +1368,16 @@ paths:
       summary: Start Google sign-in.
       description: |
         Redirects the browser to Google. The provider must be enabled for the app and
-        `redirect_uri` must match one of the app's allowed origins. The service comes
-        back to GET /callback/google and from there to `redirect_uri`.
+        `redirect_uri` must be on one of the app's allowed origins: a site of the app's
+        project (https), http://localhost or http://127.0.0.1 on any port, or an origin
+        listed in the app's allowed_origins (a custom app scheme only when listed
+        exactly). The service comes back to GET /callback/google and from there to
+        `redirect_uri`.
       parameters:
         - name: redirect_uri
           in: query
           required: true
-          description: Where to send the browser once sign-in finishes. Must match an allowed origin of the app.
+          description: Where to send the browser once sign-in finishes. Must be on a site of the app's project, localhost, or an origin listed in allowed_origins.
           schema:
             type: string
             example: https://app.example.com/auth/callback
@@ -1429,12 +1432,12 @@ paths:
       summary: Start GitHub sign-in.
       description: |
         Same shape as Google sign-in. The provider must be enabled for the app and
-        `redirect_uri` must match one of the app's allowed origins.
+        `redirect_uri` must be on one of the app's allowed origins (see Google sign-in).
       parameters:
         - name: redirect_uri
           in: query
           required: true
-          description: Where to send the browser once sign-in finishes. Must match an allowed origin of the app.
+          description: Where to send the browser once sign-in finishes. Must be on a site of the app's project, localhost, or an origin listed in allowed_origins.
           schema:
             type: string
             example: https://app.example.com/auth/callback

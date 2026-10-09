@@ -142,7 +142,6 @@ final class ModelTest extends TestCase
             'host' => 'primary-pg.databases.svc.cluster.local',
             'port' => 5432,
             'db_name' => 'appdb',
-            'username' => 'appuser',
             'tier_slug' => 'db-s',
             'cpu_request' => '100m',
             'cpu_limit' => '1',
@@ -156,28 +155,38 @@ final class ModelTest extends TestCase
             'backup_tier_slug' => 'weekly',
             'max_connections' => 100,
             'replica_set' => false,
-            'external_access' => false,
             'created_at' => '2026-09-01T10:15:00Z',
             'updated_at' => '2026-09-10T12:00:00Z',
         ]);
         $this->assertSame(DatabaseEngine::Postgres, $db->type);
         $this->assertSame(5432, $db->port);
         $this->assertSame(100, $db->maxConnections);
-        $this->assertNull($db->externalHost);
+        $this->assertNull($db->username);
+        $this->assertObjectNotHasProperty('externalAccess', $db);
+        $this->assertObjectNotHasProperty('externalHost', $db);
+        $this->assertObjectNotHasProperty('externalPort', $db);
 
+        // A site key's own connection credential, as siteCredentialBody sends it.
         $creds = DatabaseCredentials::fromArray([
             'type' => 'postgres',
             'host' => 'primary-pg.databases.svc.cluster.local',
             'port' => 5432,
-            'username' => 'appuser',
+            'username' => 'c_3f1a2b3c',
             'password' => 'example-password',
             'database' => 'appdb',
-            'internal_url' => 'postgresql://appuser:example-password@primary-pg.databases.svc.cluster.local:5432/appdb',
-            'external_access' => false,
+            'internal_url' => 'postgresql://c_3f1a2b3c:example-password@primary-pg.databases.svc.cluster.local:5432/appdb',
+            'level' => 'connect',
+            'credential' => 'connection',
         ]);
         $this->assertSame(DatabaseEngine::Postgres, $creds->type);
-        $this->assertStringStartsWith('postgresql://', $creds->internalUrl);
-        $this->assertNull($creds->externalUrl);
+        $this->assertSame('c_3f1a2b3c', $creds->username);
+        $this->assertStringStartsWith('postgresql://c_3f1a2b3c:', $creds->internalUrl);
+        $this->assertSame('connect', $creds->level);
+        $this->assertSame('connection', $creds->credential);
+        $this->assertObjectNotHasProperty('externalAccess', $creds);
+        $this->assertObjectNotHasProperty('externalHost', $creds);
+        $this->assertObjectNotHasProperty('externalPort', $creds);
+        $this->assertObjectNotHasProperty('externalUrl', $creds);
 
         $metrics = DatabaseMetrics::fromArray([
             'status' => 'running',
@@ -190,6 +199,70 @@ final class ModelTest extends TestCase
         ]);
         $this->assertSame(128.5, $metrics->uptimeHours);
         $this->assertSame(12, $metrics->extra['table_count']);
+    }
+
+    public function testValkeyDatabaseAndSiteKeyCredentials(): void
+    {
+        $db = Database::fromArray([
+            'id' => 'e5b2f3c4-7d8e-49f0-a1b2-3c4d5e6f7a8b',
+            'user_id' => '3f7c2b90-5e1a-4f2b-9c3d-8a1b2c3d4e5f',
+            'project_id' => 'a1b2c3d4-e5f6-4708-9a0b-1c2d3e4f5061',
+            'name' => 'cache',
+            'type' => 'valkey',
+            'version' => '8.1',
+            'status' => 'resizing',
+            'host' => 'cache-vk.databases.svc.cluster.local',
+            'port' => 6379,
+            'tier_slug' => 'db-s',
+            'cpu_request' => '100m',
+            'cpu_limit' => '1',
+            'memory_request' => '256Mi',
+            'memory_limit' => '1Gi',
+            'cpu_milli' => 1000,
+            'memory_mb' => 1024,
+            'storage_mb' => 1024,
+            'storage_used_bytes' => 1048576,
+            'disk_gb' => 1,
+            'backup_tier_slug' => 'weekly',
+            'replica_set' => false,
+            'valkey_mode' => 'cache',
+            'created_at' => '2026-10-01T10:15:00Z',
+            'updated_at' => '2026-10-09T12:00:00Z',
+        ]);
+        $this->assertSame(DatabaseEngine::Valkey, $db->type);
+        $this->assertSame('resizing', $db->status);
+        $this->assertSame('cache', $db->valkeyMode);
+        $this->assertNull($db->dbName);
+        $this->assertNull($db->statusMessage);
+
+        $failed = Database::fromArray(['type' => 'valkey', 'status' => 'error', 'status_message' => 'never became ready']);
+        $this->assertSame('never became ready', $failed->statusMessage);
+
+        // A site key's own Valkey credential, as siteCredentialBody sends it.
+        $creds = DatabaseCredentials::fromArray([
+            'type' => 'valkey',
+            'host' => 'cache-vk.databases.svc.cluster.local',
+            'port' => 6379,
+            'username' => 'c_3f1a2b3c',
+            'password' => 'example-password',
+            'database' => '',
+            'internal_url' => 'redis://c_3f1a2b3c:example-password@cache-vk.databases.svc.cluster.local:6379/0',
+            'level' => 'connect',
+            'credential' => 'connection',
+        ]);
+        $this->assertSame(DatabaseEngine::Valkey, $creds->type);
+        $this->assertSame(6379, $creds->port);
+        $this->assertStringStartsWith('redis://c_3f1a2b3c:', $creds->internalUrl);
+        $this->assertSame('connect', $creds->level);
+        $this->assertSame('connection', $creds->credential);
+
+        $metrics = DatabaseMetrics::fromArray([
+            'status' => 'resizing',
+            'size_bytes' => 0,
+            'size_readable' => '0 B',
+            'active_connections' => 0,
+        ]);
+        $this->assertSame('resizing', $metrics->status);
     }
 
     public function testBucketStorageObjectAndObjectMetadata(): void
@@ -210,15 +283,21 @@ final class ModelTest extends TestCase
         ]);
         $this->assertSame('assets-b1c2d3e4', $bucket->garageBucket);
         $this->assertFalse($bucket->isPublic);
+        $this->assertFalse($bucket->externalAccess);
 
+        // A site key's own connection key, as siteCredentialBody sends it.
         $creds = BucketCredentials::fromArray([
             'access_key' => 'GK-example-access-key',
             'secret_key' => 'example-secret-key',
             'bucket' => 'assets-b1c2d3e4',
             'endpoint' => 'https://s3.ghayma.app',
             'region' => 'garage',
+            'level' => 'read-write',
+            'credential' => 'connection',
         ]);
         $this->assertSame('garage', $creds->region);
+        $this->assertSame('read-write', $creds->level);
+        $this->assertSame('connection', $creds->credential);
 
         $object = StorageObject::fromArray([
             'key' => 'images/photo.jpg',
