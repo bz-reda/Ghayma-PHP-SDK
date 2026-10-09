@@ -18,7 +18,7 @@ The credentials reads return the site's own connection credential, and nothing e
 ### Removed
 
 - `DatabaseCredentials::$externalAccess`, `$externalHost`, `$externalPort`, `$externalUrl` and `Database::$externalAccess`, `$externalHost`, `$externalPort`, as properties and constructor parameters: the old database external-access model is gone and the backend no longer sends them. A system outside Ghayma gets a credential of its own with `ghayma access add database <name> --name <principal>`. `Bucket::$externalAccess` (a public bucket) stays.
-- Upgrade note: drop any read of these properties and any named argument passing them; positional `new Database(...)` calls lose the three arguments after `$replicaSet`.
+- Upgrade note: drop any read of these properties and any named argument passing them; positional `new Database(...)` calls lose the three arguments after `$replicaSet`, and positional `new DatabaseCredentials(...)` calls must drop the four after `$internalUrl`. Without `strict_types` such a call fails silently: an old 11-argument call puts the external-access `false` into `$level` (as `""`) and the old external host into `$credential`, and drops the last two.
 
 ### Deprecated
 

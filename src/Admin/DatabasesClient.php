@@ -49,8 +49,9 @@ final class DatabasesClient
      *
      * While the connection waits for its own credential, a {@see \Ghayma\Sdk\Exception\GhaymaException}
      * with `status` 409 and `errorCode` `no_own_credential` is thrown; retry in a few minutes.
-     * An account token gets a 410 `GhaymaException` (`shared_credentials_retired`), a project-wide
-     * key a 403 {@see \Ghayma\Sdk\Exception\ForbiddenException} (`site_key_required`).
+     * An account token gets a 410 `GhaymaException` (`shared_credentials_retired`); a project-wide
+     * key, or a site not connected to it, a 403 {@see \Ghayma\Sdk\Exception\ForbiddenException}
+     * (`site_key_required`, `not_connected`).
      */
     public function credentials(string $id): DatabaseCredentials
     {

@@ -33,7 +33,8 @@ try {
         try {
             $creds = $ghayma->databases->credentials($db->id);
         } catch (GhaymaException $e) {
-            // not_connected (403), or no_own_credential (409): retry in a few minutes.
+            // site_key_required (403): use the site's GHAYMA_API_KEY, not a project-wide key;
+            // not_connected (403); no_own_credential (409): retry in a few minutes.
             printf("database %s: %s\n", $db->name, $e->errorCode);
             continue;
         }

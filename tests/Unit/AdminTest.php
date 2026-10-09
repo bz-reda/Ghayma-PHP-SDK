@@ -319,6 +319,9 @@ final class AdminTest extends TestCase
             ['databases', 410, 'shared_credentials_retired'],
             ['storage', 410, 'shared_credentials_retired'],
             ['databases', 403, 'site_key_required'],
+            ['storage', 403, 'site_key_required'],
+            ['databases', 403, 'not_connected'],
+            ['storage', 403, 'not_connected'],
         ];
         foreach ($cases as [$surface, $status, $code]) {
             $client = (new RecordingClient())->queueJson($status, ['error' => 'refused', 'code' => $code]);
