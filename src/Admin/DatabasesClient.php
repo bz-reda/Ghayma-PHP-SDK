@@ -43,7 +43,15 @@ final class DatabasesClient
         return Database::fromArray(self::map($res, 'database'));
     }
 
-    /** Get a managed database's connection credentials, including the live password. */
+    /**
+     * Get the site's own connection credential (site key) for a managed database,
+     * including the live password — never the database's own login.
+     *
+     * While the connection waits for its own credential, a {@see \Ghayma\Sdk\Exception\GhaymaException}
+     * with `status` 409 and `errorCode` `no_own_credential` is thrown; retry in a few minutes.
+     * An account token gets a 410 `GhaymaException` (`shared_credentials_retired`), a project-wide
+     * key a 403 {@see \Ghayma\Sdk\Exception\ForbiddenException} (`site_key_required`).
+     */
     public function credentials(string $id): DatabaseCredentials
     {
         $res = $this->transport->request('GET', '/api/v1/databases/' . $id . '/credentials');

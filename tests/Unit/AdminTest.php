@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ghayma\Sdk\Tests\Unit;
 
+use Ghayma\Sdk\Exception\ForbiddenException;
+use Ghayma\Sdk\Exception\GhaymaException;
 use Ghayma\Sdk\Ghayma;
 use Ghayma\Sdk\Model\AuthApp;
 use Ghayma\Sdk\Model\AuthUser;
@@ -260,11 +262,14 @@ final class AdminTest extends TestCase
 
         $client = (new RecordingClient())->queueJson(200, ['credentials' => [
             'access_key' => 'GK', 'secret_key' => 's', 'bucket' => 'assets-b1', 'endpoint' => 'https://s3', 'region' => 'garage',
+            'level' => 'read', 'credential' => 'connection',
         ]]);
         $creds = $this->ghayma($client)->storage->credentials('b1');
         $this->assertRequest($client->lastRequest(), 'GET', '/api/v1/storage/b1/credentials');
         $this->assertInstanceOf(BucketCredentials::class, $creds);
         $this->assertSame('GK', $creds->accessKey);
+        $this->assertSame('read', $creds->level);
+        $this->assertSame('connection', $creds->credential);
     }
 
     public function testDatabasesListGetCredentialsMetrics(): void
@@ -274,7 +279,7 @@ final class AdminTest extends TestCase
             'status' => 'running', 'host' => 'h', 'port' => 5432, 'tier_slug' => 'db-s',
             'cpu_request' => '100m', 'cpu_limit' => '1', 'memory_request' => '256Mi', 'memory_limit' => '1Gi',
             'cpu_milli' => 1000, 'memory_mb' => 1024, 'storage_mb' => 5120, 'storage_used_bytes' => 1,
-            'disk_gb' => 5, 'backup_tier_slug' => 'weekly', 'replica_set' => false, 'external_access' => false,
+            'disk_gb' => 5, 'backup_tier_slug' => 'weekly', 'replica_set' => false,
             'created_at' => '2026-09-01T10:15:00Z', 'updated_at' => '2026-09-10T12:00:00Z',
         ];
 
@@ -286,13 +291,16 @@ final class AdminTest extends TestCase
 
         // credentials come back bare (no wrapper) per the contract.
         $client = (new RecordingClient())->queueJson(200, [
-            'type' => 'postgres', 'host' => 'h', 'port' => 5432, 'username' => 'appuser',
-            'password' => 'pw', 'database' => 'appdb', 'internal_url' => 'postgresql://x', 'external_access' => false,
+            'type' => 'postgres', 'host' => 'h', 'port' => 5432, 'username' => 'c_3f1a2b3c',
+            'password' => 'pw', 'database' => 'appdb', 'internal_url' => 'postgresql://x',
+            'level' => 'read-only', 'credential' => 'connection',
         ]);
         $creds = $this->ghayma($client)->databases->credentials('d1');
         $this->assertRequest($client->lastRequest(), 'GET', '/api/v1/databases/d1/credentials');
         $this->assertInstanceOf(DatabaseCredentials::class, $creds);
         $this->assertSame('pw', $creds->password);
+        $this->assertSame('read-only', $creds->level);
+        $this->assertSame('connection', $creds->credential);
 
         $client = (new RecordingClient())->queueJson(200, ['metrics' => [
             'status' => 'running', 'size_bytes' => 1, 'size_readable' => '1 B', 'active_connections' => 4,
@@ -300,5 +308,33 @@ final class AdminTest extends TestCase
         $metrics = $this->ghayma($client)->databases->metrics('d1');
         $this->assertRequest($client->lastRequest(), 'GET', '/api/v1/databases/d1/metrics');
         $this->assertSame('running', $metrics->status);
+    }
+
+    public function testCredentialsRefusalsCarryStatusAndCode(): void
+    {
+        $cases = [
+            ['databases', 409, 'no_own_credential'],
+            ['storage', 409, 'no_own_credential'],
+            ['storage', 409, 'credentials_not_ready'],
+            ['databases', 410, 'shared_credentials_retired'],
+            ['storage', 410, 'shared_credentials_retired'],
+            ['databases', 403, 'site_key_required'],
+        ];
+        foreach ($cases as [$surface, $status, $code]) {
+            $client = (new RecordingClient())->queueJson($status, ['error' => 'refused', 'code' => $code]);
+            $ghayma = $this->ghayma($client);
+            try {
+                if ($surface === 'databases') {
+                    $ghayma->databases->credentials('x');
+                } else {
+                    $ghayma->storage->credentials('x');
+                }
+                $this->fail("{$surface} {$status} {$code}: no exception");
+            } catch (GhaymaException $e) {
+                $this->assertSame($status, $e->status);
+                $this->assertSame($code, $e->errorCode);
+                $this->assertSame($status === 403, $e instanceof ForbiddenException);
+            }
+        }
     }
 }

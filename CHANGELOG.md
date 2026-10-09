@@ -2,6 +2,28 @@
 
 All notable changes to `ghayma/sdk` are documented here. This project adheres to [Semantic Versioning](https://semver.org/).
 
+## 0.4.0 - 2026-10-09
+
+The credentials reads return the site's own connection credential, and nothing else.
+
+### Changed
+
+- `databases->credentials()` and `storage->credentials()` answer a site's key (`GHAYMA_API_KEY`) with that site's own connection credential, never a database's own login or a bucket's owner key. While the connection waits for its own, they throw a `GhaymaException` with `status` 409 and `errorCode` `no_own_credential` (retry in a few minutes); an account token gets a 410 `shared_credentials_retired`. From a laptop: `ghayma connect --local` for a database, `ghayma env pull` for a bucket (your site's `STORAGE_*` variables; the S3 endpoint is public).
+- `spec/runtime.v1.yaml` synced with the runtime contract.
+
+### Added
+
+- `DatabaseCredentials` and `BucketCredentials`: trailing `?string $level` (`read-only`/`connect` for a database, `read`/`read-write` for a bucket) and `?string $credential` (always `connection`), null when the response omits them.
+
+### Removed
+
+- `DatabaseCredentials::$externalAccess`, `$externalHost`, `$externalPort`, `$externalUrl` and `Database::$externalAccess`, `$externalHost`, `$externalPort`, as properties and constructor parameters: the old database external-access model is gone and the backend no longer sends them. A system outside Ghayma gets a credential of its own with `ghayma access add database <name> --name <principal>`. `Bucket::$externalAccess` (a public bucket) stays.
+- Upgrade note: drop any read of these properties and any named argument passing them; positional `new Database(...)` calls lose the three arguments after `$replicaSet`.
+
+### Deprecated
+
+- `Database::$username`: not sent since October 2026 (the database's own login is never handed out), so it is null.
+
 ## 0.3.0 - 2026-10-06
 
 Every call the auth service rate-limits per IP now takes `clientIp`.

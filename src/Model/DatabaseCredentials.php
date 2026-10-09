@@ -6,7 +6,10 @@ namespace Ghayma\Sdk\Model;
 
 use Ghayma\Sdk\Enum\DatabaseEngine;
 
-/** Connection details for a managed database, read from its Kubernetes secret. */
+/**
+ * Connection details for a managed database: the site's own connection
+ * credential, the login its runtime env carries in `DATABASE_URL` / `MONGODB_URI`.
+ */
 final readonly class DatabaseCredentials
 {
     use DecodesData;
@@ -19,10 +22,10 @@ final readonly class DatabaseCredentials
         public string $password,
         public string $database,
         public string $internalUrl,
-        public bool $externalAccess,
-        public ?string $externalHost,
-        public ?int $externalPort,
-        public ?string $externalUrl,
+        /** The connection's level: `read-only` or `connect`. */
+        public ?string $level = null,
+        /** Always `connection`: the site's own credential, never the database's own login. */
+        public ?string $credential = null,
     ) {
     }
 
@@ -37,10 +40,8 @@ final readonly class DatabaseCredentials
             password: self::str($d, 'password'),
             database: self::str($d, 'database'),
             internalUrl: self::str($d, 'internal_url'),
-            externalAccess: self::bool($d, 'external_access'),
-            externalHost: self::nstr($d, 'external_host'),
-            externalPort: self::nint($d, 'external_port'),
-            externalUrl: self::nstr($d, 'external_url'),
+            level: self::nstr($d, 'level'),
+            credential: self::nstr($d, 'credential'),
         );
     }
 }

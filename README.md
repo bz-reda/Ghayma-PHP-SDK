@@ -36,7 +36,7 @@ $file = $ghayma->storage->downloadObject('bucket-id', 'images/photo.jpg');   // 
 $link = $ghayma->storage->presignDownload('bucket-id', 'images/photo.jpg');  // PresignedUrl
 
 // Databases
-$creds = $ghayma->databases->credentials('db-id');  // host, port, user, password, internalUrl…
+$creds = $ghayma->databases->credentials('db-id');  // your site's own: host, port, username, password, internalUrl, level
 
 // Auth apps — administer an app's end users
 $page = $ghayma->auth->listUsers('auth-app-id', page: 1, limit: 20);         // UserPage
@@ -44,6 +44,20 @@ $ghayma->auth->setAppMetadata('auth-app-id', 'user-id', ['roles' => ['admin']]);
 ```
 
 `->auth`, `->storage` and `->databases` return typed, immutable DTOs (`Ghayma\Sdk\Model\*`). See [`examples/admin.php`](examples/admin.php).
+
+### Credentials: your site's own
+
+`->databases->credentials()` and `->storage->credentials()` answer a site's key (the `GHAYMA_API_KEY` in the site's variables) with that site's **own** connection credential, the one its runtime already carries in `DATABASE_URL` / `MONGODB_URI` or `STORAGE_*`, at the connection's `level` (`read-only`/`connect` for a database, `read`/`read-write` for a bucket); `credential` is always `connection`. A database's own login and a bucket's owner key are never handed out.
+
+| Answer | `status` / `errorCode` | Exception |
+|---|---|---|
+| The connection has no credential of its own yet; retry in a few minutes | 409 `no_own_credential` | `GhaymaException` |
+| The bucket is still being provisioned | 409 `credentials_not_ready` | `GhaymaException` |
+| A project-wide key has no connection of its own | 403 `site_key_required` | `ForbiddenException` |
+| The site is not connected to that database or bucket | 403 `not_connected` | `ForbiddenException` |
+| An account token instead of a site key: a database's own login and a bucket's owner key are shown to no one | 410 `shared_credentials_retired` | `GhaymaException` |
+
+From your laptop, reach a database with `ghayma connect --local`, and a bucket with `ghayma env pull` (your site's `STORAGE_*` variables; the S3 endpoint is public). A system outside Ghayma gets a credential of its own: `ghayma access add database <name> --name <principal>` (or `bucket`).
 
 ## End-user auth client (`GhaymaAuth`)
 

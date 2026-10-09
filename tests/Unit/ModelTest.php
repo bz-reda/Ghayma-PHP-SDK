@@ -142,7 +142,6 @@ final class ModelTest extends TestCase
             'host' => 'primary-pg.databases.svc.cluster.local',
             'port' => 5432,
             'db_name' => 'appdb',
-            'username' => 'appuser',
             'tier_slug' => 'db-s',
             'cpu_request' => '100m',
             'cpu_limit' => '1',
@@ -156,28 +155,38 @@ final class ModelTest extends TestCase
             'backup_tier_slug' => 'weekly',
             'max_connections' => 100,
             'replica_set' => false,
-            'external_access' => false,
             'created_at' => '2026-09-01T10:15:00Z',
             'updated_at' => '2026-09-10T12:00:00Z',
         ]);
         $this->assertSame(DatabaseEngine::Postgres, $db->type);
         $this->assertSame(5432, $db->port);
         $this->assertSame(100, $db->maxConnections);
-        $this->assertNull($db->externalHost);
+        $this->assertNull($db->username);
+        $this->assertObjectNotHasProperty('externalAccess', $db);
+        $this->assertObjectNotHasProperty('externalHost', $db);
+        $this->assertObjectNotHasProperty('externalPort', $db);
 
+        // A site key's own connection credential, as siteCredentialBody sends it.
         $creds = DatabaseCredentials::fromArray([
             'type' => 'postgres',
             'host' => 'primary-pg.databases.svc.cluster.local',
             'port' => 5432,
-            'username' => 'appuser',
+            'username' => 'c_3f1a2b3c',
             'password' => 'example-password',
             'database' => 'appdb',
-            'internal_url' => 'postgresql://appuser:example-password@primary-pg.databases.svc.cluster.local:5432/appdb',
-            'external_access' => false,
+            'internal_url' => 'postgresql://c_3f1a2b3c:example-password@primary-pg.databases.svc.cluster.local:5432/appdb',
+            'level' => 'connect',
+            'credential' => 'connection',
         ]);
         $this->assertSame(DatabaseEngine::Postgres, $creds->type);
-        $this->assertStringStartsWith('postgresql://', $creds->internalUrl);
-        $this->assertNull($creds->externalUrl);
+        $this->assertSame('c_3f1a2b3c', $creds->username);
+        $this->assertStringStartsWith('postgresql://c_3f1a2b3c:', $creds->internalUrl);
+        $this->assertSame('connect', $creds->level);
+        $this->assertSame('connection', $creds->credential);
+        $this->assertObjectNotHasProperty('externalAccess', $creds);
+        $this->assertObjectNotHasProperty('externalHost', $creds);
+        $this->assertObjectNotHasProperty('externalPort', $creds);
+        $this->assertObjectNotHasProperty('externalUrl', $creds);
 
         $metrics = DatabaseMetrics::fromArray([
             'status' => 'running',
@@ -210,15 +219,21 @@ final class ModelTest extends TestCase
         ]);
         $this->assertSame('assets-b1c2d3e4', $bucket->garageBucket);
         $this->assertFalse($bucket->isPublic);
+        $this->assertFalse($bucket->externalAccess);
 
+        // A site key's own connection key, as siteCredentialBody sends it.
         $creds = BucketCredentials::fromArray([
             'access_key' => 'GK-example-access-key',
             'secret_key' => 'example-secret-key',
             'bucket' => 'assets-b1c2d3e4',
             'endpoint' => 'https://s3.ghayma.app',
             'region' => 'garage',
+            'level' => 'read-write',
+            'credential' => 'connection',
         ]);
         $this->assertSame('garage', $creds->region);
+        $this->assertSame('read-write', $creds->level);
+        $this->assertSame('connection', $creds->credential);
 
         $object = StorageObject::fromArray([
             'key' => 'images/photo.jpg',
