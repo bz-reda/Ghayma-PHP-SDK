@@ -9,8 +9,9 @@ final readonly class DatabaseMetrics
 {
     use DecodesData;
 
-    /** @param array<string, mixed> $extra engine-specific counters */
+    /** @param array<string, mixed> $extra engine-specific counters (valkey: keys, maxmemory_bytes, evicted_keys, keyspace_hits, keyspace_misses, mode) */
     public function __construct(
+        /** `provisioning`, `running`, `stopped`, `error` or `resizing`. */
         public string $status,
         public ?float $uptimeHours,
         public int $sizeBytes,

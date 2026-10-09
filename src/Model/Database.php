@@ -20,6 +20,7 @@ final readonly class Database
         public string $name,
         public DatabaseEngine $type,
         public string $version,
+        /** `provisioning`, `running`, `stopped`, `error` or `resizing` (while the disk moves to a new size). */
         public string $status,
         public string $host,
         public int $port,
@@ -41,6 +42,10 @@ final readonly class Database
         public bool $replicaSet,
         public DateTimeImmutable $createdAt,
         public DateTimeImmutable $updatedAt,
+        /** `cache` (evicts least-recently-used keys) or `store` (never evicts); a Valkey only. */
+        public ?string $valkeyMode = null,
+        /** Why the database is in error; null when empty. */
+        public ?string $statusMessage = null,
     ) {
     }
 
@@ -75,6 +80,8 @@ final readonly class Database
             replicaSet: self::bool($d, 'replica_set'),
             createdAt: self::date($d, 'created_at'),
             updatedAt: self::date($d, 'updated_at'),
+            valkeyMode: self::nstr($d, 'valkey_mode'),
+            statusMessage: self::nstr($d, 'status_message'),
         );
     }
 }

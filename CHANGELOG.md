@@ -9,11 +9,14 @@ The credentials reads return the site's own connection credential, and nothing e
 ### Changed
 
 - `databases->credentials()` and `storage->credentials()` answer a site's key (`GHAYMA_API_KEY`) with that site's own connection credential, never a database's own login or a bucket's owner key. While the connection waits for its own, they throw a `GhaymaException` with `status` 409 and `errorCode` `no_own_credential` (retry in a few minutes); an account token gets a 410 `shared_credentials_retired`. From a laptop: `ghayma connect --local` for a database, `ghayma env pull` for a bucket (your site's `STORAGE_*` variables; the S3 endpoint is public).
-- `spec/runtime.v1.yaml` synced with the runtime contract.
+- `spec/runtime.v1.yaml` and `spec/auth.v1.yaml` synced with the published contracts.
 
 ### Added
 
 - `DatabaseCredentials` and `BucketCredentials`: trailing `?string $level` (`read-only`/`connect` for a database, `read`/`read-write` for a bucket) and `?string $credential` (always `connection`), null when the response omits them.
+- Valkey databases decode: `DatabaseEngine::Valkey` (`valkey`). Before, `DatabaseEngine::from()` threw a `ValueError` on a Valkey in `databases->list()`, `get()` and `credentials()`.
+- `Database`: trailing `?string $valkeyMode` (`cache` or `store`, a Valkey only) and `?string $statusMessage` (why the database is in error), null when omitted. A Valkey has no `db_name`, so its `$dbName` is null.
+- The `resizing` status (while the disk moves to a new size) on `Database::$status` and `DatabaseMetrics::$status`. Both are plain strings, so it decodes as is.
 
 ### Removed
 
@@ -23,6 +26,7 @@ The credentials reads return the site's own connection credential, and nothing e
 ### Deprecated
 
 - `Database::$username`: not sent since October 2026 (the database's own login is never handed out), so it is null.
+- `DatabaseEngine::Redis`: Redis is not offered and the contract no longer lists it (Valkey speaks the Redis protocol). The case stays so code that references it keeps working.
 
 ## 0.3.0 - 2026-10-06
 
